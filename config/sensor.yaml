@@ -1,0 +1,54 @@
+###################################
+# Solax X1 Hybrid G4 Rest Sensors #
+###################################
+
+# Solax Cloud REST
+- platform: rest
+  scan_interval: 595    
+  resource: !secret solax_cloud_api
+  json_attributes_path: "$.result"
+  json_attributes:
+      - yieldtoday
+      - yieldtotal
+      - acpower
+      - uploadTime
+      - inverterStatus
+      - feedinpower
+      - feedinenergy
+      - consumeenergy
+      - soc
+      - batPower
+      - powerdc1
+      - powerdc2
+      - batStatus
+  value_template: 'Active'  # dummy value, not used; avoids the "State max length is 255 characters" error
+  name: "solax_rest_cloud"
+
+### Solax Local REST sensor ###
+- platform: rest
+  scan_interval: 60
+  resource: !secret solax_local_ip
+  payload: !secret solax_local_realtime_payload
+  method: POST
+  name: "solax_rest_local"
+  json_attributes:
+        - sn
+        - ver
+        - type
+        - Data
+        - Information
+  value_template: 'OK'  # dummy value, not used; avoids the "State max length is 255 characters" error
+
+### Solax Local REST settings ###
+- platform: rest
+  scan_interval: 3600
+  resource: !secret solax_local_ip
+  payload: !secret solax_local_settings_payload
+  method: POST
+  name: "solax_rest_local_settings"
+  # Unfortunately settings are not returned as a JSON document but an array of numbers, so having to pick just the relevant to avoid the max 255 chars limit
+  # 0 - Self Use Min SOC %
+  # 1 - Self Use Charge from grid (0 for disabled, 1 for enabled)
+  # 2 - Self Use Charge from grid to % 
+  # 3 - Charge/discharge Period2 Enabled (0 for disabled, 1 for enabled)
+  value_template: "{{ '[' ~ value.split(',')[28] ~ ',' ~ value.split(',')[29] ~ ',' ~ value.split(',')[30] ~ ',' ~ value.split(',')[40] ~ ']' }}"

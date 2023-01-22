@@ -1,0 +1,13 @@
+config/blueprints/
+config/.storage/
+config/custom_components
+config/www
+config/secrets.yaml
+config/home-assistant_v2.db
+config/home-assistant_v2.db-shm
+config/home-assistant_v2.db-wal
+config/home-assistant.log
+config/home-assistant.log.1
+config/home-assistant.log.fault
+config/.HA_VERSION
+config/.vscode/settings.json

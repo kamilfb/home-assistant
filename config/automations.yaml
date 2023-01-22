@@ -1,0 +1,284 @@
+- id: '1395837280000'
+  alias: Battery - Set solar battery target level (night before)
+  description: Set target battery level (charge from grid) based on anticipated solar production
+  trigger:
+  - platform: time
+    at: "23:10:00"
+  condition: []
+  action:
+  - repeat:
+      sequence:
+      - service: input_number.set_value
+        data_template:
+          entity_id: input_number.new_battery_target
+          value: >
+            {% set solar = states('sensor.energy_production_tomorrow') %}
+            {% set target = 15 %} 
+            {% if is_number(solar) %}
+              {% set target = 92 if (solar|float <= 3) else target %}  
+              {% set target = 71 if (solar|float > 3 and solar|float <= 4) else target %}
+              {% set target = 51 if (solar|float > 4 and solar|float <= 5) else target %}
+              {% set target = 41 if (solar|float > 5 and solar|float <= 6) else target %}
+              {% set target = 31 if (solar|float > 7 and solar|float <= 8) else target %}
+              {% set target = 21 if (solar|float > 8 and solar|float <= 9) else target %}
+              {% set target = 19 if (solar|float > 9) else target %}
+            {% endif %} 
+            {{ target }}
+      - service: rest_command.solax_local_set_charge_battery_from_grid
+        data:
+          # Max level to 92% to reduce battery wear. Minimum to 15% (10% for the min level plus 5% for early morning use until the sun comes out).
+          level: >
+            {{ states('input_number.new_battery_target') }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('sensor.solax_local_battery_charge_from_grid_to')|int == states('input_number.new_battery_target')|int or
+                repeat.index == 3 }}
+  mode: single
+
+- id: '1390284763845'
+  alias: Battery - Set solar battery target level (early morning)
+  description: Set target battery level (charge from grid) based on anticipated solar production
+  trigger:
+  - platform: time
+    at: "03:30:00"
+  condition: []
+  action:
+  - repeat:
+      sequence:
+      - service: input_number.set_value
+        data_template:
+          entity_id: input_number.new_battery_target
+          value: >
+            {% set solar = states('sensor.energy_production_today') %}
+            {% set target = 15 %} 
+            {% if is_number(solar) %}
+              {% set target = 92 if (solar|float <= 3) else target %}  
+              {% set target = 71 if (solar|float > 3 and solar|float <= 4) else target %}
+              {% set target = 51 if (solar|float > 4 and solar|float <= 5) else target %}
+              {% set target = 41 if (solar|float > 5 and solar|float <= 6) else target %}
+              {% set target = 31 if (solar|float > 7 and solar|float <= 8) else target %}
+              {% set target = 21 if (solar|float > 8 and solar|float <= 9) else target %}
+              {% set target = 19 if (solar|float > 9) else target %}
+            {% endif %} 
+            {{ target }}
+      - service: rest_command.solax_local_set_charge_battery_from_grid
+        data:
+          # Max level to 92% to reduce battery wear. Minimum to 15% (10% for the min level plus 5% for early morning use until the sun comes out).
+          level: >
+            {{ states('input_number.new_battery_target') }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('sensor.solax_local_battery_charge_from_grid_to')|int == states('input_number.new_battery_target')|int or
+                repeat.index == 3 }}
+  mode: single
+
+- id: '1672233470659'
+  alias: Sinks - Put 2kW electric heater on (excess solar)
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_2kw_heater
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+    to: "on"
+  action:
+  - type: turn_on
+    device_id: 273edc8e0b6dcd4117de51becf83b2d0
+    entity_id: switch.heater
+    domain: switch
+  mode: single
+
+- id: '1634984084830'
+  alias: Sinks - Turn 2kW electric heater off
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_2kw_heater
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+    to: "off"
+  action:
+  - type: turn_off
+    device_id: 273edc8e0b6dcd4117de51becf83b2d0
+    entity_id: switch.heater
+    domain: switch
+  mode: single
+
+- id: '1105783920394'
+  alias: Sinks - Put 3kW immersion heater (excess solar)
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_3kw_immersion
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    to: "on"
+  action:
+  - type: turn_on
+    device_id: 0e56664e1317e879ea8852efe217d98b
+    entity_id: switch.sonoff_100168acb6
+    domain: switch
+  mode: single
+
+- id: '1283957837432'
+  alias: Sinks - Turn 3kW immersion heater off
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_3kw_immersion
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    to: "off"
+  action:
+  - type: turn_off
+    device_id: 0e56664e1317e879ea8852efe217d98b
+    entity_id: switch.sonoff_100168acb6
+    domain: switch
+  mode: single
+
+- id: "1302984839203"
+  alias: Set electric tariff
+  description: "Set Electric Tariff for utility sensor"
+  trigger:
+  - platform: time
+    at: "00:30:00"
+    variables:
+      tariff: offpeak
+  - platform: time
+    at: "04:30:00"
+    variables:
+      tariff: peak
+  condition: []
+  action:
+  - service: select.select_option
+    target:
+      entity_id: select.daily_grid
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_hot_water
+    data:
+      option: "{{ tariff }}"
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electricity_tariff_cost
+    data:
+      value: >
+        {% set cost = dict(peak=0.41, offpeak=0.12) %}
+        {{ cost[tariff] }}
+  mode: single
+
+# Didn't work every 5 seconds :( so disabled for now'
+- id: "1019847854392"
+  alias: Refresh local inverter
+  description: "Updates local inverter readings"
+  trigger:
+  - platform: time_pattern
+    seconds: "/5"
+  condition: 
+  - condition: time
+    after: "06:00:00"
+    before: "23:00:00"
+  action:
+  - service: homeassistant.update_entity
+    entity_id: sensor.solax_rest_local
+  mode: single
+
+# Always reset to the same state - i.e. no off-peak forced charging overnight
+- id: "1143938438939"
+  alias: Battery - Disable forced charge
+  description: "Allows for discharge if too much energy stored from previous day (default state)"
+  trigger:
+  - platform: time
+    at: "23:20:00"
+  action:
+  - repeat:
+      sequence:
+      - service: rest_command.solax_local_set_period2_enable
+        data:
+          # 1 = enabled, 0 = disabled
+          enabled: >
+            {{ 0 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 or repeat.index == 3 }}
+  mode: single
+
+# Detect if battery needs topping up within the off-peak tariff or if discharge should stop and the remainder power be left for peak usage (+4 is how much the inverter overshoots the target charge)
+- id: "1029376657476"
+  alias: Battery - Enable forced charge
+  description: "Stops allowed discharge and allows for charging to target"
+  trigger:
+  - platform: time_pattern
+    minutes: "/1"
+  condition: 
+  - condition: time
+    after: "00:25:00"
+    before: "04:20:00"
+  - condition: template
+    value_template: >-
+      {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 }}
+  - condition: template
+    value_template: >-
+      {{ states('sensor.solax_local_battery_soc')|int <= states('sensor.solax_local_battery_charge_from_grid_to')|int + 4 }}
+  action:
+  - repeat:
+      sequence:
+      - service: rest_command.solax_local_set_period2_enable
+        data:
+          # 1 = enabled, 0 = disabled
+          enabled: >
+            {{ 1 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('sensor.solax_local_battery_chd2_enabled')|int == 1 or repeat.index == 3 }}
+  mode: single
