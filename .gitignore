@@ -11,3 +11,4 @@ config/home-assistant.log.1
 config/home-assistant.log.fault
 config/.HA_VERSION
 config/.vscode/settings.json
+.vscode/settings.json
