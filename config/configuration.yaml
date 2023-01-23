@@ -451,7 +451,7 @@ template:
         {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
         {{ (pv > 3000 and alreadyOn==false and feedIn > 900) 
             or (pv > 3000 and alreadyOn==false and feedIn > -50 and batteryCharging > 3000 and load < 3500) 
-            or (pv > 3000 and alreadyOn==true  and feedIn > -50 and batteryCharging > 900  and load < 5500) 
+            or (pv > 3000 and alreadyOn==true  and feedIn > -50 and batteryCharging > 800  and load < 5500) 
             or (pv > 2500 and alreadyOn==false and feedIn > -50 and batteryCharging > 2000 and batteryLevel > 85 and load < 3500) 
             or (pv > 2500 and alreadyOn==true  and feedIn > -50 and batteryCharging > 0    and batteryLevel > 85 and load < 5500) 
             or (pv > 2200 and alreadyOn==false and feedIn > -50 and batteryCharging > 2000 and batteryLevel > 90 and load < 3500) 
