@@ -468,10 +468,10 @@ template:
         {% set feedIn = states('sensor.solax_local_feedin_power')|int %}
         {% set load = states('sensor.solax_local_load_power')|int %}
         {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
-        {{     (pv > 3500 and load < 2500 and (alreadyOn==false or heatingPower > 1000) and (feedIn + batteryCharging) > 3100) 
+        {{     (pv > 3500 and load < 2500 and (alreadyOn==false or heatingPower < 1000) and (feedIn + batteryCharging) > 3100) 
             or (pv > 3500 and load < 5500 and alreadyOn==true  and heatingPower > 1000 and feedIn > -50 and batteryCharging > 400) 
-            or (pv >  300 and load < 2500 and (alreadyOn==false or heatingPower > 1000) and feedIn > -50 and batteryLevel > 91) 
-            or (pv >  300 and load < 5500 and alreadyOn==true  and heatingPower > 1000 and feedIn > -50 and batteryLevel >= 91) }}
+            or (pv >  300 and load < 2500 and (alreadyOn==false or heatingPower < 1000) and feedIn > -50 and batteryLevel > 90) 
+            or (pv >  300 and load < 5500 and alreadyOn==true  and heatingPower > 1000 and feedIn > -50 and batteryLevel >= 90) }}
 
 sensor: !include sensor.yaml
 
