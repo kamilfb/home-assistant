@@ -1,9 +1,12 @@
 - id: '1395837280000'
-  alias: Battery - Set solar battery target level (night before)
+  alias: Battery - Set solar battery target level
   description: Set target battery level (charge from grid) based on anticipated solar production
   trigger:
   - platform: time
-    at: "23:10:00"
+    at: "23:30:00"
+  # If the forecast charges for worse, a last change to top up the battery  
+  - platform: time
+    at: "03:30:00"  
   condition: []
   action:
   - repeat:
@@ -11,19 +14,22 @@
       - service: input_number.set_value
         data_template:
           entity_id: input_number.new_battery_target
+          # Assumptions: hourly morning usage of 0.2kWh/h, battery capacity 6.2kWh, end of night tariff 04:30am, overcharging by 4%
           value: >
-            {% set solar = states('sensor.energy_production_tomorrow') %}
-            {% set target = 15 %} 
+            {% set solar = states('sensor.energy_production_tomorrow') if now().hour > 12 else states('sensor.energy_production_today') %}
+            {% set morningDemand = ((today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('04:30')).seconds/60/60*0.2/6.2*100)|round %}
+            {% set minTarget = 10 + morningDemand %}
+            {% set target = minTarget - 4 %} 
             {% if is_number(solar) %}
               {% set target = 92 if (solar|float <= 3) else target %}  
-              {% set target = 71 if (solar|float > 3 and solar|float <= 4) else target %}
-              {% set target = 51 if (solar|float > 4 and solar|float <= 5) else target %}
-              {% set target = 41 if (solar|float > 5 and solar|float <= 6) else target %}
-              {% set target = 31 if (solar|float > 7 and solar|float <= 8) else target %}
-              {% set target = 21 if (solar|float > 8 and solar|float <= 9) else target %}
-              {% set target = 19 if (solar|float > 9) else target %}
+              {% set target = minTarget + 50 if (solar|float > 3 and solar|float <= 4) else target %}
+              {% set target = minTarget + 30 if (solar|float > 4 and solar|float <= 5) else target %}
+              {% set target = minTarget + 20 if (solar|float > 5 and solar|float <= 6) else target %}
+              {% set target = minTarget + 10 if (solar|float > 7 and solar|float <= 8) else target %}
+              {% set target = minTarget +  1 if (solar|float > 8 and solar|float <= 9) else target %}
+              {% set target = minTarget -  2 if (solar|float > 9) else target %}
             {% endif %} 
-            {{ target }}
+            {{ target if (target > 15) else 15 }}
       - service: rest_command.solax_local_set_charge_battery_from_grid
         data:
           # Max level to 92% to reduce battery wear. Minimum to 15% (10% for the min level plus 5% for early morning use until the sun comes out).
@@ -197,9 +203,9 @@
         {{ cost[tariff] }}
   mode: single
 
-# Didn't work every 5 seconds :( so disabled for now'
+# Keep refreshing the energy readings for manual inspection and more snappy automations
 - id: "1019847854392"
-  alias: Refresh local inverter
+  alias: Refresh local inverter energy readings
   description: "Updates local inverter readings"
   trigger:
   - platform: time_pattern
@@ -207,7 +213,7 @@
   condition: 
   - condition: time
     after: "06:00:00"
-    before: "23:00:00"
+    before: "22:00:00"
   action:
   - service: homeassistant.update_entity
     entity_id: sensor.solax_rest_local
@@ -219,7 +225,7 @@
   description: "Allows for discharge if too much energy stored from previous day (default state)"
   trigger:
   - platform: time
-    at: "23:20:00"
+    at: "23:40:00"
   action:
   - repeat:
       sequence:

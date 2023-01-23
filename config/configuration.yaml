@@ -363,10 +363,20 @@ template:
       state: "{{ state_attr('sensor.solax_local_settings', 'Data')[2] | int(default=0) }}"
       unit_of_measurement: "%"
 
+### Battery settings charge/discharge (period 1) ###
+    - name: "Solax Local Battery Setting Start Charge"
+      state: "{{'%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[3])%256 | int(default=0)) }}:{{'%02d' %((state_attr('sensor.solax_local_settings', 'Data')[3])/256) | int(default=0)}} "
+    - name: "Solax Local Battery Setting Stop Charge"
+      state: "{{'%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[4])%256 | int(default=0)) }}:{{'%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[4])/256) | int(default=0)}} "
+    - name: "Solax Local Battery Setting Start Discharge"
+      state: "{{'%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[5])%256 | int(default=0)) }}:{{'%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[5])/256) | int(default=0)}} "
+    - name: "Solax Local Battery Setting Stop Discharge"
+      state: "{{'%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[6])%256 | int(default=0)) }}:{{ '%02d' % ((state_attr('sensor.solax_local_settings', 'Data')[6])/256) | int(default=0)}} "
+
 ### Battery charge/discharge period2 enabled
     - name: "Solax Local Battery ChD2 Enabled"
       unique_id: solax_local_battery_chd2_enabled
-      state: "{{ state_attr('sensor.solax_local_settings', 'Data')[3] | int(default=0) }}"
+      state: "{{ state_attr('sensor.solax_local_settings', 'Data')[7] | int(default=0) }}"
 
 ### Estimated remaining energy ###
     - name: "Solax Local Battery Remain Energy"

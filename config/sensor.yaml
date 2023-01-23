@@ -50,5 +50,9 @@
   # 0 - Self Use Min SOC %
   # 1 - Self Use Charge from grid (0 for disabled, 1 for enabled)
   # 2 - Self Use Charge from grid to % 
-  # 3 - Charge/discharge Period2 Enabled (0 for disabled, 1 for enabled)
-  value_template: "{{ '[' ~ value.split(',')[28] ~ ',' ~ value.split(',')[29] ~ ',' ~ value.split(',')[30] ~ ',' ~ value.split(',')[40] ~ ']' }}"
+  # 3 - Forced charge start
+  # 4 - Forced charge end
+  # 5 - Allowed discharge start
+  # 6 - Allowed discharge end
+  # 7 - Charge/discharge Period2 Enabled (0 for disabled, 1 for enabled)
+  value_template: "{{ '[' ~ value.split(',')[28] ~ ',' ~ value.split(',')[29] ~ ',' ~ value.split(',')[30] ~ ',' ~ value.split(',')[36] ~ ',' ~ value.split(',')[37] ~ ',' ~ value.split(',')[38] ~ ',' ~ value.split(',')[39] ~ ',' ~ value.split(',')[40] ~ ']' }}"
