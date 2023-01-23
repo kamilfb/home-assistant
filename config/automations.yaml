@@ -146,10 +146,22 @@
       seconds: 0
     to: "on"
   action:
-  - type: turn_on
-    device_id: 0e56664e1317e879ea8852efe217d98b
-    entity_id: switch.sonoff_100168acb6
-    domain: switch
+  - repeat:
+      sequence:
+      - type: turn_on
+        device_id: 0e56664e1317e879ea8852efe217d98b
+        entity_id: switch.sonoff_100168acb6
+        domain: switch
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('switch.sonoff_100168acb6') == on or repeat.index == 3 }}
   mode: single
 
 - id: '1283957837432'
@@ -164,10 +176,22 @@
       seconds: 30
     to: "off"
   action:
-  - type: turn_off
-    device_id: 0e56664e1317e879ea8852efe217d98b
-    entity_id: switch.sonoff_100168acb6
-    domain: switch
+  - repeat:
+      sequence:
+      - type: turn_off
+        device_id: 0e56664e1317e879ea8852efe217d98b
+        entity_id: switch.sonoff_100168acb6
+        domain: switch
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('switch.sonoff_100168acb6') == off or repeat.index == 3 }}
   mode: single
 
 - id: "1302984839203"
