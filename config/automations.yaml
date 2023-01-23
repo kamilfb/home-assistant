@@ -135,7 +135,7 @@
   mode: single
 
 - id: '1105783920394'
-  alias: Sinks - Put 3kW immersion heater (excess solar)
+  alias: Sinks - Put 3kW immersion heater (excess solar or night start)
   description: ''
   trigger:
   - platform: state
@@ -145,6 +145,8 @@
       minutes: 2
       seconds: 0
     to: "on"
+  - platform: time
+    at: "01:00:00"  
   action:
   - repeat:
       sequence:
@@ -156,7 +158,6 @@
           hours: 0
           minutes: 0
           seconds: 10
-          milliseconds: 0
       until:
       - condition: template
         # Try up to 3 times if the updated setting doen't reflect the target
@@ -164,17 +165,21 @@
             {{ states('switch.sonoff_100168acb6') == on or repeat.index == 3 }}
   mode: single
 
-- id: '1283957837432'
-  alias: Sinks - Turn 3kW immersion heater off
-  description: ''
+- id: '1029486719232'
+  alias: Sinks - Turn 3kW immersion heater off (max temp)
+  description: Turn off completely if thermostat starts turning off the heating (hot enough)
   trigger:
-  - platform: state
-    entity_id: binary_sensor.request_3kw_immersion
+  - platform: numeric_state
+    entity_id: sensor.sonoff_100168acb6_power
     for:
       hours: 0
-      minutes: 0
-      seconds: 30
-    to: "off"
+      minutes: 5
+      seconds: 0
+    below: 1000
+  condition: 
+  - condition: time
+    after: "00:30:00"
+    before: "04:30:00"    
   action:
   - repeat:
       sequence:
@@ -187,6 +192,37 @@
           minutes: 0
           seconds: 10
           milliseconds: 0
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('switch.sonoff_100168acb6') == off or repeat.index == 3 }}
+  mode: single
+
+- id: '1283957837432'
+  alias: Sinks - Turn 3kW immersion heater off (low solar or night end)
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_3kw_immersion
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    to: "off"
+  - platform: time
+    at: "04:00:00"    
+  action:
+  - repeat:
+      sequence:
+      - type: turn_off
+        device_id: 0e56664e1317e879ea8852efe217d98b
+        entity_id: switch.sonoff_100168acb6
+        domain: switch
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
       until:
       - condition: template
         # Try up to 3 times if the updated setting doen't reflect the target
