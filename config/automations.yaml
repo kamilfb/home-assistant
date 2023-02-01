@@ -100,7 +100,11 @@
       seconds: 0
     to: "on"
   - platform: time
-    at: "01:00:00"  
+    at: "01:00:00"      
+  - platform: time
+    at: "02:00:00"  
+  - platform: time
+    at: "03:00:00"      
   action:
   - repeat:
       sequence:
@@ -165,7 +169,11 @@
       seconds: 30
     to: "off"
   - platform: time
-    at: "04:00:00"    
+    at: "01:50:00"         
+  - platform: time
+    at: "02:50:00"       
+  - platform: time
+    at: "03:50:00"    
   action:
   - repeat:
       sequence:
@@ -263,7 +271,8 @@
             {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 or repeat.index == 3 }}
   mode: single
 
-# Detect if battery needs topping up within the off-peak tariff or if discharge should stop and the remainder power be left for peak usage (+4 is how much the inverter overshoots the target charge)
+# Detect if battery needs topping up within the off-peak tariff or if discharge should stop and the remainder power be left for peak usage 
+# (+4 is how much the inverter overshoots the target charge, +5 is buffer in case of fast discharge)
 - id: "1029376657476"
   alias: Battery - Enable forced charge
   description: "Stops allowed discharge and allows for charging to target"
@@ -279,7 +288,7 @@
       {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 }}
   - condition: template
     value_template: >-
-      {{ states('sensor.solax_local_battery_soc')|int <= (states('sensor.solax_local_battery_charge_from_grid_to')|int + 4) }}
+      {{ states('sensor.solax_local_battery_soc')|int <= states('sensor.solax_local_battery_charge_from_grid_to')|int + 9 }}
   action:
   - repeat:
       sequence:
