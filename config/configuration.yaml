@@ -588,3 +588,8 @@ rest_command:
     url: !secret solax_local_ip
     method: post
     payload: !secret solax_local_set_period2_enable_payload
+
+  solax_local_set_forced_charge_start:
+    url: !secret solax_local_ip
+    method: post
+    payload: !secret solax_local_set_battery_forced_charge_start

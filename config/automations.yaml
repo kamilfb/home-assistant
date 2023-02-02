@@ -252,15 +252,19 @@
   action:
   - repeat:
       sequence:
-      - service: rest_command.solax_local_set_period2_enable
+#      - service: rest_command.solax_local_set_period2_enable
+#        data:
+#          # 1 = enabled, 0 = disabled
+#          enabled: >
+#            {{ 0 }}
+      - service: rest_command.solax_local_set_forced_charge_start
         data:
-          # 1 = enabled, 0 = disabled
-          enabled: >
-            {{ 0 }}
+          value: >
+            {{ 4 + 25 * 256 }}
       - delay:
           hours: 0
           minutes: 0
-          seconds: 10
+          seconds: 15
           milliseconds: 0
       - service: homeassistant.update_entity
         entity_id: sensor.solax_rest_local_settings
@@ -268,8 +272,9 @@
       until:
       - condition: template
         # Try up to 3 times if the updated setting doen't reflect the target
+        # {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 or repeat.index == 3 }}
         value_template: >-
-            {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 or repeat.index == 3 }}
+            {{ states('sensor.solax_local_battery_setting_start_charge') == '04:25' or repeat.index == 3 }}
   mode: single
 
 # Detect if battery needs topping up within the off-peak tariff or if discharge should stop and the remainder power be left for peak usage 
@@ -284,24 +289,28 @@
   - condition: time
     after: "00:25:00"
     before: "04:20:00"
-  - condition: template
-    value_template: >-
-      {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 }}
+#  - condition: template
+#    value_template: >-
+#      {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 }}
   - condition: template
     value_template: >-
       {{ states('sensor.solax_local_battery_soc')|int <= states('sensor.solax_local_battery_charge_from_grid_to')|int + 9 }}
   action:
   - repeat:
       sequence:
-      - service: rest_command.solax_local_set_period2_enable
+#      - service: rest_command.solax_local_set_period2_enable
+#        data:
+#          # 1 = enabled, 0 = disabled
+#          enabled: >
+#            {{ 1 }}
+      - service: rest_command.solax_local_set_forced_charge_start
         data:
-          # 1 = enabled, 0 = disabled
-          enabled: >
-            {{ 1 }}
+          value: >
+            {{ 0 + 35 * 256 }}            
       - delay:
           hours: 0
           minutes: 0
-          seconds: 10
+          seconds: 15
           milliseconds: 0
       - service: homeassistant.update_entity
         entity_id: sensor.solax_rest_local_settings
@@ -309,6 +318,7 @@
       until:
       - condition: template
         # Try up to 3 times if the updated setting doen't reflect the target
+        # {{ states('sensor.solax_local_battery_chd2_enabled')|int == 1 or repeat.index == 3 }}
         value_template: >-
-            {{ states('sensor.solax_local_battery_chd2_enabled')|int == 1 or repeat.index == 3 }}
+            {{ states('sensor.solax_local_battery_setting_start_charge') == '00:35' or repeat.index == 3 }}
   mode: single
