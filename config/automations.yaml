@@ -132,7 +132,7 @@
     entity_id: sensor.sonoff_100168acb6_power
     for:
       hours: 0
-      minutes: 4
+      minutes: 2
       seconds: 0
     below: 1000
   condition: 
