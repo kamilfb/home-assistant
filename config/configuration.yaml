@@ -216,24 +216,42 @@ template:
 ### Local sensor readings ###
     - name: solax_local
       state: > 
-            {% if state_attr('sensor.solax_rest_local', 'sn') == "SV3EXBWAUA"  %}{{ now().strftime("%H:%M:%S") }}
-            {% else %}{{ (states('sensor.solax_local')) }}{% endif %}
+            {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10  %}
+              {{ now().strftime("%H:%M:%S") }}
+            {% else %}
+              {{ (states('sensor.solax_local')) }}
+            {% endif %}
       attributes: 
         sn: >-
-            {% if state_attr('sensor.solax_rest_local', 'sn') == "SV3EXBWAUA" %}{{ (state_attr('sensor.solax_rest_local', 'sn')) }}
-            {% else %}{{ (state_attr('sensor.solax_local', 'sn')) }}{% endif %}
+            {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10 %}
+              {{ (state_attr('sensor.solax_rest_local', 'sn')) }}
+            {% else %}
+              {{ (state_attr('sensor.solax_local', 'sn')) }}
+            {% endif %}
         ver: >-
-          {% if state_attr('sensor.solax_rest_local', 'sn') == "SV3EXBWAUA" %}{{ (state_attr('sensor.solax_rest_local', 'ver')) }}
-          {% else %}{{ (state_attr('sensor.solax_local', 'ver')) }}{% endif %}
+          {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10 %}
+            {{ (state_attr('sensor.solax_rest_local', 'ver')) }}
+          {% else %}
+            {{ (state_attr('sensor.solax_local', 'ver')) }}
+          {% endif %}
         type: >-
-          {% if state_attr('sensor.solax_rest_local', 'sn') == "SV3EXBWAUA" %}{{ (state_attr('sensor.solax_rest_local', 'type')) }}
-          {% else %}{{ (state_attr('sensor.solax_local', 'type')) }}{% endif %}
+          {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10 %}
+            {{ (state_attr('sensor.solax_rest_local', 'type')) }}
+          {% else %}
+            {{ (state_attr('sensor.solax_local', 'type')) }}
+          {% endif %}
         Data: >-
-          {% if state_attr('sensor.solax_rest_local', 'sn') == "SV3EXBWAUA" %}{{ (state_attr('sensor.solax_rest_local', 'Data')) }}
-          {% else %}{{ (state_attr('sensor.solax_local', 'Data')) }}{% endif %}
+          {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10 %}
+            {{ (state_attr('sensor.solax_rest_local', 'Data')) }}
+          {% else %}
+            {{ (state_attr('sensor.solax_local', 'Data')) }}
+          {% endif %}
         Information: >-
-          {% if state_attr('sensor.solax_rest_local', 'sn') == "SV3EXBWAUA" %}{{ (state_attr('sensor.solax_rest_local', 'Information')) }}
-          {% else %}{{ (state_attr('sensor.solax_local', 'Information')) }}{% endif %}
+          {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10 %}
+            {{ (state_attr('sensor.solax_rest_local', 'Information')) }}
+          {% else %}
+            {{ (state_attr('sensor.solax_local', 'Information')) }}
+          {% endif %}
 
 ### Make the settings look like sensor data by embedding the info in the Data attribute 
     - name: solax_local_settings
