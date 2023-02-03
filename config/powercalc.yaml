@@ -65,6 +65,13 @@
   fixed:
     power: "{{states('sensor.solax_local_load_power')}}"
 
+### Fixed-load Sinks ###
+- platform: powercalc
+  entity_id: switch.heater
+  name: Electric Heater Aggregated
+  fixed:
+    power: 2000
+
 # Cloud SOLAX #
 # TODO: rename
 #- platform: powercalc
