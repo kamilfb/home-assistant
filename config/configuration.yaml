@@ -214,6 +214,7 @@ template:
 # --- LOCAL --------------------------
 
 ### Local sensor readings ###
+    # Each valid SN seems to be 10 characters
     - name: solax_local
       state: > 
             {% if state_attr('sensor.solax_rest_local', 'sn')|length == 10  %}
@@ -457,6 +458,18 @@ template:
       state: "{{ states('sensor.solax_local_inverter_aggregated_energy') | float(default=0) - states('sensor.solax_local_grid_export_aggregated_energy') | float(default=0) }}"
       unit_of_measurement: "kWh"
       device_class: "energy"
+
+    # Solar forecast for next day or current day (16:00 is cutover for next day)
+    - name: energy_production_upcoming
+      unique_id: energy_production_upcoming
+      unit_of_measurement: "kWh"
+      device_class: "energy"
+      state: > 
+            {% if today_at('00:01') <= now() < today_at('16:00') %}
+              {{ (states('sensor.energy_production_today')) }}
+            {% else %}
+              {{ (states('sensor.energy_production_tomorrow')) }}
+            {% endif %}
 
   - binary_sensor:
     - name: "Request 2kW Heater"
