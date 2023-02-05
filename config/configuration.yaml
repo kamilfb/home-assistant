@@ -593,6 +593,14 @@ utility_meter:
       - peak
       - offpeak
 
+  daily_hot_water:
+    source: sensor.sonoff_100168acb6_energy
+    name: Daily Hot Water
+    cycle: daily
+    tariffs:
+      - peak
+      - offpeak
+
   monthly_hot_water:
     source: sensor.sonoff_100168acb6_energy
     name: Hot Water
