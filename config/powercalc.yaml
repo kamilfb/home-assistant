@@ -65,6 +65,15 @@
   fixed:
     power: "{{states('sensor.solax_local_load_power')}}"
 
+### Variable load sinks ###
+- platform: powercalc
+  entity_id: sensor.sonoff_100168acb6_power
+  # Not reusing existing power sensor so that new energy sensor is created 
+  #power_sensor_id: sensor.sonoff_100168acb6_power
+  name: Immersion Heater Aggregated
+  fixed:
+    power: "{{states('sensor.sonoff_100168acb6_power')}}"
+
 ### Fixed-load Sinks ###
 - platform: powercalc
   entity_id: switch.heater
