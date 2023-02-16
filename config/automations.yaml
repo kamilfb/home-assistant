@@ -80,6 +80,8 @@
         data_template:
           entity_id: input_number.new_battery_target
           # Assumptions: hourly morning usage of 0.25kWh/h, battery capacity 6.2kWh, end of night tariff 04:30am, overcharging by 4-5% hence -4 of the target
+          # Assumptions: low solar range upped to cater for immersion top up (2kWh)
+          # Note: min target should be about 22% winter and 14% in summer
           # Note: instead of using separate tomorrow/today's forecasts, use a single state (energy_production_upcoming) and then its average over a few hours (filtered)
           value: >
             {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
@@ -87,14 +89,14 @@
             {% set minTarget = 10 + morningDemand - 4 %}
             {% set target = minTarget %} 
             {% if is_number(solar) %}
-              {% set target = 92 if (solar|float <= 3) else target %}  
-              {% set target = minTarget + 50 if (solar|float > 3 and solar|float <= 4) else target %}
-              {% set target = minTarget + 30 if (solar|float > 4 and solar|float <= 5) else target %}
-              {% set target = minTarget + 20 if (solar|float > 5 and solar|float <= 6) else target %}
-              {% set target = minTarget + 15 if (solar|float > 6 and solar|float <= 7) else target %}
-              {% set target = minTarget + 10 if (solar|float > 7 and solar|float <= 8) else target %}
-              {% set target = minTarget +  5 if (solar|float > 8 and solar|float <= 9) else target %}
-              {% set target = minTarget      if (solar|float > 9) else target %}
+              {% set target = 92             if (solar|float <= 4) else target %}  
+              {% set target = minTarget + 60 if (solar|float >  4 and solar|float <=  5) else target %}
+              {% set target = minTarget + 40 if (solar|float >  5 and solar|float <=  6) else target %}
+              {% set target = minTarget + 25 if (solar|float >  6 and solar|float <=  7) else target %}
+              {% set target = minTarget + 15 if (solar|float >  7 and solar|float <=  8) else target %}
+              {% set target = minTarget + 10 if (solar|float >  8 and solar|float <=  9) else target %}
+              {% set target = minTarget +  5 if (solar|float >  9 and solar|float <= 10) else target %}
+              {% set target = minTarget      if (solar|float > 10) else target %}
             {% endif %} 
             {{ target if (target > 11) else 11 }}
       - service: rest_command.solax_local_set_charge_battery_from_grid
