@@ -56,3 +56,22 @@
   # 6 - Allowed discharge end
   # 7 - Charge/discharge Period2 Enabled (0 for disabled, 1 for enabled)
   value_template: "{{ '[' ~ value.split(',')[28] ~ ',' ~ value.split(',')[29] ~ ',' ~ value.split(',')[30] ~ ',' ~ value.split(',')[36] ~ ',' ~ value.split(',')[37] ~ ',' ~ value.split(',')[38] ~ ',' ~ value.split(',')[39] ~ ',' ~ value.split(',')[40] ~ ']' }}"
+
+# Smooth out solar forecast as it often gets very choppy
+- platform: filter
+  name: "filtered upcoming solar forecast"
+  unique_id: energy_production_upcoming_filtered
+  entity_id: sensor.energy_production_upcoming
+  filters:
+    - filter: time_simple_moving_average
+      window_size: "04:30"
+      precision: 2
+
+- platform: filter
+  name: "filtered upcoming solar forecast lp"
+  unique_id: energy_production_upcoming_filtered_lp
+  entity_id: sensor.energy_production_upcoming
+  filters:
+    - filter: lowpass
+      time_constant: 5
+      precision: 2

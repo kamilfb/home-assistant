@@ -1,3 +1,68 @@
+- id: '12233445566789'
+  alias: Sinks - Hot Water - Set immersion target level
+  description: Set target immersion target heating level based on anticipated solar production
+  trigger:
+  - platform: time
+    at: "23:45:00"
+  - platform: time
+    at: "23:55:00"  
+  condition: []
+  action:
+  - service: input_number.set_value
+    data_template:
+      entity_id: input_number.night_immersion_target
+      # Assumptions: 2.5kWh/h for 4hrs (10min pause), can use 2.5kWh for every 5kWh generated above 15kWh (to cater for weather fluctuation)
+      #              total capacity of the 210L tank is about 15kWh (from 5 to 65C)
+      #              at 5C outside, on average it could take 7.5kWh per night to heat to max, 
+      #              also daily average (night+day) was 7.5kWh so target shouldn't be more than 8kWh, minimum to up of 3kWh
+      #              end of night tariff 04:30am
+      # Note: instead of using separate tomorrow/today's forecasts, use a single state (energy_production_upcoming) and then its average over a few hours (filtered)
+      # Note: simple weather compensation adding kWh to target (+2 for below -3C, +1 for below 2C, -1 for above 12C, -2 for above 17C)
+      # Note: if todays solar top up was low, ignore upcoming forecast and heat to max
+      value: >
+        {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
+        {% set todaysSolarTopUp = states('sensor.daily_hot_water_peak')|float %}
+        {% set currentTemperature = state_attr('weather.forecast_home', 'temperature') %}
+        {% set min_immersion = states('input_number.night_min_immersion_target')|float %}
+        {% set weatherAdjustment = 0 %} 
+        {% if is_number(currentTemperature) %}
+          {% set weatherAdjustment =  2 if (currentTemperature|float                                   <= -3) else weatherAdjustment %}
+          {% set weatherAdjustment =  1 if (currentTemperature|float > -3 and currentTemperature|float <=  2) else weatherAdjustment %}
+          {% set weatherAdjustment =  0 if (currentTemperature|float >  2 and currentTemperature|float <= 12) else weatherAdjustment %}
+          {% set weatherAdjustment = -1 if (currentTemperature|float > 12 and currentTemperature|float <= 17) else weatherAdjustment %}
+          {% set weatherAdjustment = -2 if (currentTemperature|float > 17)                                    else weatherAdjustment %}
+        {% endif %} 
+        {% set solarThreshold = 15 %} 
+        {% set target = 8 + weatherAdjustment %} 
+        {% if is_number(solar) %}
+          {% set target = target - ((solar|float - solarThreshold)*2.5/5)|round(1) if (solar|float >  solarThreshold and todaysSolarTopUp > 2.5) else target %}          
+        {% endif %} 
+        {{ target if (target > min_immersion) else min_immersion }}
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 5
+      milliseconds: 0
+  - service: input_number.set_value
+    data_template:
+      entity_id: input_number.max_temp_idle_seconds
+      # Allow high idle time when target is high (super hot water), low in case high solar forecast (not so hot water)
+      value: >
+        {% set immersion = states('input_number.night_immersion_target') %}
+        {% set target = 180 %} 
+        {% if is_number(immersion) %}
+          {% set target =  30 if (immersion|float <= 2) else target %}  
+          {% set target =  60 if (immersion|float >  2 and immersion|float <= 3) else target %}
+          {% set target =  90 if (immersion|float >  3 and immersion|float <= 4) else target %}
+          {% set target = 120 if (immersion|float >  4 and immersion|float <= 5) else target %}
+          {% set target = 150 if (immersion|float >  5 and immersion|float <= 6) else target %}
+          {% set target = 180 if (immersion|float >  6 and immersion|float <= 7) else target %}
+          {% set target = 240 if (immersion|float >  7 and immersion|float <  8) else target %}
+          {% set target = 300 if (immersion|float >= 8) else target %}          
+        {% endif %} 
+        {{ target }}
+  mode: single
+
 - id: '1395837280000'
   alias: Battery - Set solar battery target level
   description: Set target battery level (charge from grid) based on anticipated solar production
@@ -14,11 +79,11 @@
       - service: input_number.set_value
         data_template:
           entity_id: input_number.new_battery_target
-          # Assumptions: hourly morning usage of 0.2kWh/h, battery capacity 6.2kWh, end of night tariff 04:30am, overcharging by 4-5% hence -4 of the target
+          # Assumptions: hourly morning usage of 0.25kWh/h, battery capacity 6.2kWh, end of night tariff 04:30am, overcharging by 4-5% hence -4 of the target
           # Note: instead of using separate tomorrow/today's forecasts, use a single state (energy_production_upcoming) and then its average over a few hours (filtered)
           value: >
-            {% set solar = states('energy_production_upcoming_filtered') %}
-            {% set morningDemand = ((today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('04:30')).seconds/60/60*0.2/6.2*100)|round %}
+            {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
+            {% set morningDemand = ((today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('04:30')).seconds/60/60*0.25/6.2*100)|round %}
             {% set minTarget = 10 + morningDemand - 4 %}
             {% set target = minTarget %} 
             {% if is_number(solar) %}
@@ -54,7 +119,7 @@
   mode: single
 
 - id: '1672233470659'
-  alias: Sinks - Put 2kW electric heater on (excess solar)
+  alias: Sinks - Heating - Start electric heater (excess solar)
   description: ''
   trigger:
   - platform: state
@@ -72,7 +137,7 @@
   mode: single
 
 - id: '1634984084830'
-  alias: Sinks - Turn 2kW electric heater off
+  alias: Sinks - Heating - Stop electric heater
   description: ''
   trigger:
   - platform: state
@@ -89,8 +154,8 @@
     domain: switch
   mode: single
 
-- id: '1105783920394'
-  alias: Sinks - Put 3kW immersion heater (excess solar or night start)
+- id: '1105783920393'
+  alias: Sinks - Hot Water - Start immersion heater (excess solar)
   description: ''
   trigger:
   - platform: state
@@ -99,7 +164,85 @@
       hours: 0
       minutes: 2
       seconds: 0
-    to: "on"
+    to: "on"    
+  action:
+  - repeat:
+      sequence:
+      - type: turn_on
+        device_id: 0e56664e1317e879ea8852efe217d98b
+        entity_id: switch.sonoff_100168acb6
+        domain: switch
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('switch.sonoff_100168acb6') == 'on' or repeat.index == 3 }}
+  mode: single
+
+- id: '11001293920394'
+  alias: Sinks - Hot Water - Run immersion heater (evening top-up in case of low solar)
+  description: ''
+  trigger:
+  - platform: time
+    at: "19:35:00" 
+  condition:
+  - condition: template
+    # Only turn on immersion if usage so far is less than the target
+    value_template: >-
+      {{ states('sensor.daily_hot_water_peak')|float < states('input_number.evening_immersion_target')|float }}
+  action:
+  - repeat:
+      sequence:
+      - type: turn_on
+        device_id: 0e56664e1317e879ea8852efe217d98b
+        entity_id: switch.sonoff_100168acb6
+        domain: switch
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('switch.sonoff_100168acb6') == 'on' or repeat.index == 3 }}
+  - repeat:
+      sequence:
+      - delay:
+          hours: 0
+          minutes: 1
+          seconds: 0
+      until:
+      - condition: template
+        # Keep it in on state until at least 1kWh 
+        value_template: >-
+            {{ states('sensor.daily_hot_water_peak')|float >= states('input_number.evening_immersion_target')|float }}
+  - repeat:
+      sequence:
+      - type: turn_off
+        device_id: 0e56664e1317e879ea8852efe217d98b
+        entity_id: switch.sonoff_100168acb6
+        domain: switch
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('switch.sonoff_100168acb6') == 'off' or repeat.index == 3 }}
+  mode: single
+
+- id: '1105783920394'
+  alias: Sinks - Hot Water - Start immersion heater (night start)
+  description: ''
+  trigger:
   - platform: time
     at: "00:35:00"
   - platform: time
@@ -107,7 +250,12 @@
   - platform: time
     at: "02:35:00"  
   - platform: time
-    at: "03:35:00"      
+    at: "03:35:00"   
+  condition:
+  - condition: template
+    # Only turn on immersion if usage so far is less than the target
+    value_template: >-
+      {{ states('sensor.daily_hot_water_offpeak')|float < states('input_number.night_immersion_target')|float }}
   action:
   - repeat:
       sequence:
@@ -127,16 +275,17 @@
   mode: single
 
 - id: '1029486719232'
-  alias: Sinks - Turn 3kW immersion heater off (max temp)
-  description: Turn off completely if thermostat starts turning off the heating (hot enough)
+  alias: Sinks - Hot Water - Stop immersion heater (max temp idle time or night target reached)
+  description: Turn off completely if thermostat starts turning off the heating (hot enough) or target achieved
   trigger:
   - platform: numeric_state
     entity_id: sensor.sonoff_100168acb6_power
     for:
-      hours: 0
-      minutes: 3
-      seconds: 0
+      seconds: "{{ states('input_number.max_temp_idle_seconds')|int }}"
     below: 1000
+  - platform: template
+    value_template: >-
+      {{ states('sensor.daily_hot_water_offpeak')|float >= states('input_number.night_immersion_target')|float }}
   condition: 
   - condition: time
     after: "00:30:00"
@@ -161,7 +310,7 @@
   mode: single
 
 - id: '1283957837432'
-  alias: Sinks - Turn 3kW immersion heater off (low solar or night end)
+  alias: Sinks - Hot Water - Stop immersion heater (low solar or night end)
   description: ''
   trigger:
   - platform: state
@@ -197,62 +346,15 @@
             {{ states('switch.sonoff_100168acb6') == 'off' or repeat.index == 3 }}
   mode: single
 
-- id: "1302984839203"
-  alias: Tariffs - Switch electricity tariff
-  description: "Set electricity tariff for utility sensor"
-  trigger:
-  - platform: time
-    at: "00:30:00"
-    variables:
-      tariff: offpeak
-  - platform: time
-    at: "04:30:00"
-    variables:
-      tariff: peak
-  condition: []
-  action:
-  - service: select.select_option
-    target:
-      entity_id: select.daily_grid
-    data:
-      option: "{{ tariff }}"
-  - service: select.select_option
-    target:
-      entity_id: select.monthly_hot_water
-    data:
-      option: "{{ tariff }}"
-  - service: input_number.set_value
-    target:
-      entity_id: input_number.electricity_tariff_cost
-    data:
-      value: >
-        {% set cost = dict(peak=0.41, offpeak=0.12) %}
-        {{ cost[tariff] }}
-  mode: single
-
-# Keep refreshing the energy readings for manual inspection and more snappy automations
-- id: "1019847854392"
-  alias: Inverter - Refresh local energy readings
-  description: "Updates local inverter readings"
-  trigger:
-  - platform: time_pattern
-    seconds: "/5"
-  condition: 
-  - condition: time
-    after: "06:00:00"
-    before: "22:00:00"
-  action:
-  - service: homeassistant.update_entity
-    entity_id: sensor.solax_rest_local
-  mode: single
-
 # Always reset to the same state - i.e. no off-peak forced charging overnight
 - id: "1143938438939"
   alias: Battery - Disable forced charge
   description: "Allows for discharge if too much energy stored from previous day (default state)"
   trigger:
   - platform: time
-    at: "23:40:00"
+    at: "23:40:00"  
+  - platform: time
+    at: "23:50:00"
   action:
   - repeat:
       sequence:
@@ -282,7 +384,7 @@
   mode: single
 
 # Detect if battery needs topping up within the off-peak tariff or if discharge should stop and the remainder power be left for peak usage 
-# (+4 is how much the inverter overshoots the target charge, +5 is buffer in case of fast discharge)
+# (+4 is how much the inverter overshoots the target charge, +4 is buffer in case of fast discharge)
 - id: "1029376657476"
   alias: Battery - Enable forced charge
   description: "Stops allowed discharge and allows for charging to target"
@@ -298,7 +400,7 @@
 #      {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 }}
   - condition: template
     value_template: >-
-      {{ states('sensor.solax_local_battery_soc')|int <= states('sensor.solax_local_battery_charge_from_grid_to')|int + 9 }}
+      {{ states('sensor.solax_local_battery_soc')|int <= states('sensor.solax_local_battery_charge_from_grid_to')|int + 8 }}
   action:
   - repeat:
       sequence:
@@ -325,4 +427,63 @@
         # {{ states('sensor.solax_local_battery_chd2_enabled')|int == 1 or repeat.index == 3 }}
         value_template: >-
             {{ states('sensor.solax_local_battery_setting_start_charge') == '00:35' or repeat.index == 3 }}
+  mode: single
+
+- id: "1302984839203"
+  alias: Tariffs - Switch electricity tariff
+  description: "Set electricity tariff for utility sensor"
+  trigger:
+  - platform: time
+    at: "00:30:00"
+    variables:
+      tariff: offpeak
+  - platform: time
+    at: "04:30:00"
+    variables:
+      tariff: peak
+  condition: []
+  action:
+  - service: select.select_option
+    target:
+      entity_id: select.daily_grid
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_grid
+    data:
+      option: "{{ tariff }}"      
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_hot_water
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.daily_hot_water
+    data:
+      option: "{{ tariff }}"
+  - service: input_number.set_value
+    target:
+      entity_id: input_number.electricity_tariff_cost
+    data:
+      value: >
+        {% set cost = dict(peak=0.41, offpeak=0.12) %}
+        {{ cost[tariff] }}
+  mode: single
+
+# Keep refreshing the energy readings for manual inspection and more snappy automations
+- id: "1019847854392"
+  alias: Inverter - Refresh local energy readings
+  description: "Updates local inverter readings"
+  trigger:
+  - platform: time_pattern
+    seconds: "/5"
+  condition: 
+  - condition: time
+    after: "06:00:00"
+    before: "22:00:00"
+  action:
+  - service: homeassistant.update_entity
+    entity_id: sensor.solax_rest_local
   mode: single
