@@ -10,26 +10,84 @@ frontend:
 powercalc:
 #  create_utility_meters: true
 
+#daikin_residential:
+#  email: !secret daikin_email
+#  password: !secret daikin_pwd
+
 logger:
   default: info
   logs:
      homeassistant.components.rest: info
   #   custom_components.powercalc: debug
 
+input_select:
+
+  living_room_hvac_mode:
+    name: living_room_hvac_mode
+    options:
+      - 'heat'
+      - 'off'
+    initial: 'off'
+
 input_number:
+
+  # Min 10 (to avoid going up to quickly), step every 5min to easier use
+  ground_floor_temp_target_min_cycle_duration:
+    name: ground_floor_temp_target_min_cycle_duration
+    initial: 20
+    min: 1
+    max: 60
+    step: 1
+
+  ground_floor_temp_target_margin:
+    name: ground_floor_temp_target_margin
+    initial: 0.3
+    min: 0.1
+    max: 1.0
+    step: 0.1
+    unit_of_measurement: "°C"
+
+  ground_floor_temp_target:
+    name: ground_floor_temp_target
+    initial: 21.5
+    min: 18.0
+    max: 22.5
+    step: 0.1
+    unit_of_measurement: "°C"
+
+  living_room_temp_target:
+    name: living_room_temp_target
+    initial: 18.0
+    min: 17.5
+    max: 22.5
+    step: 0.5
+    unit_of_measurement: "°C"
+  
+  min_battery_target:
+    name: min_battery_target
+    initial: 11
+    min: 10
+    max: 92
+
+  max_battery_target:
+    name: max_battery_target
+    initial: 92
+    min: 10
+    max: 92
 
   new_battery_target:
     name: new_battery_target
     initial: 10
     min: 10
-    max: 95
+    max: 92
 
   evening_immersion_target:
     name: evening_immersion_target
-    unit_of_measurement: 'Wh'
+    unit_of_measurement: 'kWh'
     initial: 2.0
     min: 0.0
     max: 5.0
+    step: 0.1
 
   night_min_immersion_target:
     name: night_min_immersion_target
@@ -37,6 +95,7 @@ input_number:
     initial: 3
     min: 0
     max: 8
+    step: 0.1
 
   night_immersion_target:
     name: night_immersion_target
@@ -44,6 +103,7 @@ input_number:
     initial: 9
     min: 0
     max: 12
+    step: 0.1
 
   max_temp_idle_seconds:
     name: max_temp_idle_seconds
@@ -348,22 +408,24 @@ template:
       device_class: "temperature"
 
 ### Battery charging/discharging power (positive for charging the battery) ###
-#    - name: "Solax Local Battery Power"
-#      unique_id: solax_local_battery_power
-#      state:  >
-#        {% if state_attr('sensor.solax_local', 'Data')[16] > 32767 %}{{ state_attr('sensor.solax_local', 'Data')[16] - 65536 }}
-#        {% else %}{{ state_attr('sensor.solax_local', 'Data')[16] }}{% endif %}
-#      unit_of_measurement: "W"
-#      #state_class: measurement
-#      device_class: "power"
+    - name: "Solax Local Battery Power"
+      unique_id: solax_local_battery_power
+      state:  >
+        {% if state_attr('sensor.solax_local', 'Data')[16] > 32767 %}{{ state_attr('sensor.solax_local', 'Data')[16] - 65536 }}
+        {% else %}{{ state_attr('sensor.solax_local', 'Data')[16] }}{% endif %}
+      unit_of_measurement: "W"
+      state_class: measurement
+      device_class: "power"
 
-    # Assuming 50W for running inverter and battery
+    # Assuming 75W for running inverter and battery plus 95% conversion efficiency; if above 1kW, trust the inverter
     - name: "Solax Local Battery Power Adjusted"
       unique_id: solax_local_battery_power_adjusted
       state:  >
         {% set ac = states('sensor.solax_local_inverter_power')|int %}
-        {% set pv = states('sensor.solax_local_pv_output')|int %}
-        {{ (0 - ac + pv - 50) if (ac + pv != 0) else 0 }}
+        {% set battery = states('sensor.solax_local_battery_power')|int %}
+        {% set pv = (states('sensor.solax_local_pv_output')|float * 0.95)| round(0) %}
+        {% set adjusted = (0 - ac + pv - 75) if (ac + pv != 0) else 0 %}
+        {{ adjusted if (adjusted < battery and adjusted < 1000) else battery }}
       unit_of_measurement: "W"
       #state_class: measurement
       device_class: "power"
@@ -486,6 +548,20 @@ template:
       unit_of_measurement: "kWh"
       device_class: "energy"
 
+    # Total today's heap pump
+    - name: heat_pump_today
+      unique_id: heat_pump_today
+      unit_of_measurement: "kWh"
+      device_class: "energy"
+      state: "{{ states('sensor.lounge_daily_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_daily_heat_energy_consumption') | float(default=0)}}"
+
+    # Total yearly heap pump
+    - name: heat_pump_yearly
+      unique_id: heat_pump_yearly
+      unit_of_measurement: "kWh"
+      device_class: "energy"
+      state: "{{ states('sensor.lounge_yearly_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_yearly_heat_energy_consumption') | float(default=0)}}"
+
     # Solar forecast for next day or current day (16:00 is cutover for next day)
     - name: energy_production_upcoming
       unique_id: energy_production_upcoming
@@ -499,28 +575,9 @@ template:
             {% endif %}
 
   - binary_sensor:
-    - name: "Request 2kW Heater"
-      state: >
-        {% set alreadyOn = is_state('switch.heater', 'on') %}
-        {% set batteryCharging = states('sensor.solax_local_battery_power_adjusted')|int %}
-        {% set pv = states('sensor.solax_local_pv_output')|int %}
-        {% set feedIn = states('sensor.solax_local_feedin_power')|int %}
-        {% set load = states('sensor.solax_local_load_power')|int %}
-        {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
-        {% set sparePower = feedIn + batteryCharging %}
-        {% set bc = (feedIn > -100) and ((alreadyOn==false and load < 3500) or (alreadyOn==true and load < 5500)) %}
-        {{ bc and ((pv > 3000 and alreadyOn==false and sparePower > 3000 ) 
-                or (pv > 3000 and alreadyOn==true  and sparePower >  800 ) 
-                or (pv > 2600 and alreadyOn==false and sparePower > 2600 and batteryLevel >  85 ) 
-                or (pv > 2600 and alreadyOn==true  and sparePower >  400 and batteryLevel >= 85 ) 
-                or (pv > 2200 and alreadyOn==false and sparePower > 2200 and batteryLevel >  90 ) 
-                or (pv > 2200 and alreadyOn==true  and sparePower >  100 and batteryLevel >= 90 ) 
-                or (pv >  300 and alreadyOn==false and sparePower >  300 and batteryLevel >  93 ) 
-                or (pv >  300 and alreadyOn==true                        and batteryLevel >= 93 )) }}
-
+    # Logic divided into base conditions (bc) that apply regardless, and battery/solar specific
     - name: "Request 3kW Immersion"
       state: >
-        {% set heaterOn = is_state('switch.heater', 'on') %}
         {% set alreadyOn = is_state('switch.sonoff_100168acb6', 'on')  %}
         {% set heatingPower = states('sensor.sonoff_100168acb6_power')|float(default=0) %}
         {% set batteryCharging = states('sensor.solax_local_battery_power_adjusted')|int %}
@@ -531,18 +588,19 @@ template:
         {% set sparePower = feedIn + batteryCharging %}
         {% set bc = (feedIn > -100) and (
                  ((alreadyOn==false or heatingPower < 1000) and load < 2500) 
-              or ((alreadyOn==false or heatingPower < 1000) and load < 4500 and heaterOn)
               or (alreadyOn==true and heatingPower > 1000 and load < 5500)) %}
         {{ bc and ((pv > 3400 and alreadyOn==false and sparePower > 3200) 
                 or (pv > 3400 and alreadyOn==true  and sparePower > 100)
-                or (pv > 2500 and alreadyOn==false and batteryLevel >  70) 
-                or (pv > 2500 and alreadyOn==true  and batteryLevel >= 70)                 
-                or (pv > 1500 and alreadyOn==false and batteryLevel >  80) 
-                or (pv > 1500 and alreadyOn==true  and batteryLevel >= 80)                
-                or (pv > 1000 and alreadyOn==false and batteryLevel >  85) 
-                or (pv > 1000 and alreadyOn==true  and batteryLevel >= 85)
-                or (pv >  400 and alreadyOn==false and batteryLevel >  90) 
-                or (pv >  400 and alreadyOn==true  and batteryLevel >= 90)) }}
+                or (pv > 2500 and alreadyOn==false and batteryLevel >  50) 
+                or (pv > 2500 and alreadyOn==true  and batteryLevel >= 50)                 
+                or (pv > 1500 and alreadyOn==false and batteryLevel >  60) 
+                or (pv > 1500 and alreadyOn==true  and batteryLevel >= 60)                
+                or (pv > 1000 and alreadyOn==false and batteryLevel >  70) 
+                or (pv > 1000 and alreadyOn==true  and batteryLevel >= 70)
+                or (pv >  500 and alreadyOn==false and batteryLevel >  80) 
+                or (pv >  500 and alreadyOn==true  and batteryLevel >= 80)                
+                or (pv >  200 and alreadyOn==false and batteryLevel >  90) 
+                or (pv >  200 and alreadyOn==true  and batteryLevel >= 90)) }}
 
 sensor: !include sensor.yaml
 
@@ -651,6 +709,7 @@ utility_meter:
     name: Daily Hot Water
     cycle: daily
     tariffs:
+      - solar
       - peak
       - offpeak
 
@@ -659,6 +718,7 @@ utility_meter:
     name: Hot Water
     cycle: monthly
     tariffs:
+      - solar
       - peak
       - offpeak
 

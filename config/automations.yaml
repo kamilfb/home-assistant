@@ -1,11 +1,128 @@
+- id: "1022226654411"
+  alias: Air Conditioning - Follow Tado settings
+  description: "Follows on/off state plus temperature target from Ground Floor Tado"
+  trigger:
+    - platform: state
+      entity_id:
+        - climate.ground_floor
+      attribute: temperature
+    - platform: state
+      entity_id:
+        - climate.ground_floor
+  condition: []
+  action:
+  - service: input_number.set_value
+    data_template:
+      entity_id: input_number.ground_floor_temp_target
+      value: >
+        {% set gfTempTarget  = state_attr('climate.ground_floor', 'temperature')|float %}
+        {{ gfTempTarget }}
+  - service: input_select.select_option
+    target:
+      entity_id: input_select.living_room_hvac_mode
+    data:
+      option: "{{ 'off' if (states('climate.ground_floor') == 'off') else 'heat' }}"
+    
+  mode: single
+
+- id: "1022226657321"
+  alias: Air Conditioning - Adjust target temperature
+  description: "Adjusts the target temperature to keep it between the configured range (~21.0/21.5)"
+  trigger:
+  - platform: time_pattern
+    minutes: "/2"
+  - platform: state
+    entity_id:
+    - input_number.ground_floor_temp_target
+    - input_number.ground_floor_temp_target_margin
+    - input_number.ground_floor_temp_target_min_cycle_duration
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+  condition: 
+  - condition: time
+    after: "06:30:00"
+    before: "21:00:00"
+  - condition: template
+    value_template: >-
+      {{ states('climate.lounge') == 'heat' }}
+  action:
+  - service: input_number.set_value
+    data_template:
+      entity_id: input_number.living_room_temp_target
+      value: >
+        {% set gfTempTarget  = state_attr('climate.lounge', 'temperature')|float %}
+        {% set gfTemp        = states('sensor.ground_floor_temperature')|float %}
+        {% set gfTempAvg     = states('sensor.ground_floor_temperature_30min_average')|float %}
+        {# Negative "gf30minDelta" means temp is dropping #}
+        {% set gf30minDelta  = gfTemp - gfTempAvg %}
+        {% set manualTempTarget = states('input_number.ground_floor_temp_target')|float %}
+        {% set manualTempMargin = states('input_number.ground_floor_temp_target_margin')|float %}
+        {% set manualTempCycle  = states('input_number.ground_floor_temp_target_min_cycle_duration')|int %}
+        {% set lowTarget        = manualTempTarget - manualTempMargin %}
+        {% set highTarget       = manualTempTarget + manualTempMargin %}
+        {# Avoid short cycling (after start-up, manual change or auto-adjustment) #}
+        {% set targetlastChanged = (as_timestamp(now()) - as_timestamp(states.input_number.living_room_temp_target.last_changed)|int)/60 %}
+        {% set statuslastChanged = (as_timestamp(now()) - as_timestamp(states.climate.lounge.last_changed)|int)/60 %}
+        {% set canAdjust = true if (targetlastChanged > manualTempCycle and statuslastChanged > manualTempCycle) else false %}
+        {% set tempTarget = gfTempTarget %}
+        {# Change the target if either outside of the temperature brackets already, or expecting this with the delta applied #}
+        {# In rare scenarios when the temp is rising fast, if alread seeing double the high target allow reducing temp in half the cycle time #}
+        {% set tempTarget = tempTarget + 0.5 if ((gfTemp <= lowTarget  or gfTemp + gf30minDelta <= lowTarget)  and canAdjust) else tempTarget %}
+        {% set tempTarget = tempTarget - 0.5 if ((gfTemp >= highTarget or gfTemp + gf30minDelta >= highTarget) and canAdjust) 
+                                             or ((gfTemp + gf30minDelta >= highTarget + manualTempMargin) and targetlastChanged > manualTempCycle/2) else tempTarget %}
+        {{ tempTarget }}
+#  - service: climate.set_temperature
+#    data_template:
+#      entity_id: climate.lounge
+#      temperature: "{{ states('input_number.living_room_temp_target') }}"
+  mode: single
+
+- id: "1022226653322"
+  alias: Air Conditioning - Update living room target temp
+  description: "Adjusts the target temperature of the living room unit"
+  trigger:
+  - platform: state
+    entity_id:
+    - input_number.living_room_temp_target
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+  action:
+  - service: climate.set_temperature
+    data_template:
+      entity_id: climate.lounge
+      temperature: "{{ states('input_number.living_room_temp_target') }}"
+  mode: single
+
+- id: "1022226653399"
+  alias: Air Conditioning - Update on/off state
+  description: "Adjusts the on/off state of the living room unit"
+  trigger:
+  - platform: state
+    entity_id:
+    - input_select.living_room_hvac_mode
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+  action:
+  - service: climate.set_hvac_mode
+    data_template:
+      entity_id: climate.lounge
+      hvac_mode: "{{ states('input_select.living_room_hvac_mode') }}"
+  mode: single
+
 - id: '12233445566789'
   alias: Sinks - Hot Water - Set immersion target level
   description: Set target immersion target heating level based on anticipated solar production
   trigger:
   - platform: time
-    at: "23:45:00"
+    at: "22:45:00"
   - platform: time
-    at: "23:55:00"  
+    at: "23:45:00"  
   condition: []
   action:
   - service: input_number.set_value
@@ -72,6 +189,14 @@
   # If the forecast charges for worse, a last change to top up the battery  
   - platform: time
     at: "03:30:00"  
+  - platform: state
+    entity_id:
+    - input_number.min_battery_target
+    - input_number.max_battery_target
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
   condition: []
   action:
   - repeat:
@@ -81,24 +206,31 @@
           entity_id: input_number.new_battery_target
           # Assumptions: hourly morning usage of 0.25kWh/h, battery capacity 6.2kWh, end of night tariff 04:30am, overcharging by 4-5% hence -4 of the target
           # Assumptions: low solar range upped to cater for immersion top up (2kWh)
+          # Assumptions: 0.9kWh for heating per hour (heating from 0430 to 0630)
           # Note: min target should be about 22% winter and 14% in summer
           # Note: instead of using separate tomorrow/today's forecasts, use a single state (energy_production_upcoming) and then its average over a few hours (filtered)
           value: >
+            {% set min_battery_target = states('input_number.min_battery_target')|int %}
+            {% set max_battery_target = states('input_number.max_battery_target')|int %}
             {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
-            {% set morningDemand = ((today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('04:30')).seconds/60/60*0.25/6.2*100)|round %}
+            {% set morningHourlyLoad = 0.25 %}
+            {% set morningHourlyHeating = 0.9 %}
+            {% set secondsToSunRising = (today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('04:30')).seconds %}
+            {% set morningDemandKWh = (secondsToSunRising/60/60*morningHourlyLoad + morningHourlyHeating*2.5)|round %}
+            {% set morningDemand = (morningDemandKWh/6.2*100)|round %}
             {% set minTarget = 10 + morningDemand - 4 %}
-            {% set target = minTarget %} 
             {% if is_number(solar) %}
-              {% set target = 92             if (solar|float <= 4) else target %}  
-              {% set target = minTarget + 60 if (solar|float >  4 and solar|float <=  5) else target %}
-              {% set target = minTarget + 40 if (solar|float >  5 and solar|float <=  6) else target %}
-              {% set target = minTarget + 25 if (solar|float >  6 and solar|float <=  7) else target %}
-              {% set target = minTarget + 15 if (solar|float >  7 and solar|float <=  8) else target %}
-              {% set target = minTarget + 10 if (solar|float >  8 and solar|float <=  9) else target %}
-              {% set target = minTarget +  5 if (solar|float >  9 and solar|float <= 10) else target %}
-              {% set target = minTarget      if (solar|float > 10) else target %}
+              {% set target = max_battery_target  if (solar|float <= 5) else target %}  
+              {% set target = minTarget + 60 if (solar|float >  5 and solar|float <=  6) else target %}
+              {% set target = minTarget + 40 if (solar|float >  6 and solar|float <=  7) else target %}
+              {% set target = minTarget + 25 if (solar|float >  7 and solar|float <=  8) else target %}
+              {% set target = minTarget + 15 if (solar|float >  8 and solar|float <=  9) else target %}
+              {% set target = minTarget + 10 if (solar|float >  9 and solar|float <= 10) else target %}
+              {% set target = minTarget +  5 if (solar|float > 10 and solar|float <= 11) else target %}
+              {% set target = minTarget      if (solar|float > 11) else target %}
             {% endif %} 
-            {{ target if (target > 11) else 11 }}
+            {% set target = target if (target > min_battery_target) else min_battery_target %} 
+            {{ target if (target <= max_battery_target) else max_battery_target }}
       - service: rest_command.solax_local_set_charge_battery_from_grid
         data:
           # Max level to 92% to reduce battery wear. Minimum to 11% plus 4% overcharge
@@ -120,42 +252,6 @@
                 repeat.index == 3 }}
   mode: single
 
-- id: '1672233470659'
-  alias: Sinks - Heating - Start electric heater (excess solar)
-  description: ''
-  trigger:
-  - platform: state
-    entity_id: binary_sensor.request_2kw_heater
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 15
-    to: "on"
-  action:
-  - type: turn_on
-    device_id: 273edc8e0b6dcd4117de51becf83b2d0
-    entity_id: switch.heater
-    domain: switch
-  mode: single
-
-- id: '1634984084830'
-  alias: Sinks - Heating - Stop electric heater
-  description: ''
-  trigger:
-  - platform: state
-    entity_id: binary_sensor.request_2kw_heater
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 15
-    to: "off"
-  action:
-  - type: turn_off
-    device_id: 273edc8e0b6dcd4117de51becf83b2d0
-    entity_id: switch.heater
-    domain: switch
-  mode: single
-
 - id: '1105783920393'
   alias: Sinks - Hot Water - Start immersion heater (excess solar)
   description: ''
@@ -164,9 +260,13 @@
     entity_id: binary_sensor.request_3kw_immersion
     for:
       hours: 0
-      minutes: 2
+      minutes: 1
       seconds: 0
     to: "on"    
+  condition: 
+  - condition: time
+    after: "06:30:00"
+    before: "19:30:00"   
   action:
   - repeat:
       sequence:
@@ -195,7 +295,7 @@
   - condition: template
     # Only turn on immersion if usage so far is less than the target
     value_template: >-
-      {{ states('sensor.daily_hot_water_peak')|float < states('input_number.evening_immersion_target')|float }}
+      {{ states('sensor.daily_hot_water_peak')|float + states('sensor.daily_hot_water_solar')|float < states('input_number.evening_immersion_target')|float }}
   action:
   - repeat:
       sequence:
@@ -222,7 +322,7 @@
       - condition: template
         # Keep it in on state until at least 1kWh 
         value_template: >-
-            {{ states('sensor.daily_hot_water_peak')|float >= states('input_number.evening_immersion_target')|float }}
+            {{ states('sensor.daily_hot_water_peak')|float + states('sensor.daily_hot_water_solar')|float >= states('input_number.evening_immersion_target')|float }}
   - repeat:
       sequence:
       - type: turn_off
@@ -431,6 +531,33 @@
             {{ states('sensor.solax_local_battery_setting_start_charge') == '00:35' or repeat.index == 3 }}
   mode: single
 
+- id: "1302984839333"
+  alias: Tariffs - Set 'solar' tariff for tracking usage from PV
+  description: "Set some meters to use 'solar' tariff"
+  trigger:
+  - platform: sun
+    event: sunrise
+    offset: 0
+    variables:
+      tariff: solar
+  - platform: sun
+    event: sunset
+    offset: 0
+    variables:
+      tariff: peak
+  condition: []
+  action:     
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_hot_water
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.daily_hot_water
+    data:
+      option: "{{ tariff }}"
+
 - id: "1302984839203"
   alias: Tariffs - Switch electricity tariff
   description: "Set electricity tariff for utility sensor"
@@ -480,7 +607,7 @@
   description: "Updates local inverter readings"
   trigger:
   - platform: time_pattern
-    seconds: "/5"
+    seconds: "/10"
   condition: 
   - condition: time
     after: "06:00:00"

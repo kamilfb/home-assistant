@@ -75,3 +75,41 @@
     - filter: lowpass
       time_constant: 5
       precision: 2
+
+- platform: average
+  name: 'Ground Floor Temperature 30min Average'
+  entities:
+  - sensor.ground_floor_temperature
+  duration:
+    minutes: 25
+
+#- platform: average
+#  name: 'First Floor Temperature Average'
+#  entities:
+#  - sensor.first_floor_temperature
+#  duration:
+#    hours: 24
+
+- platform: average
+  name: 'Yesterdays Home Temperature Average'
+  entities:
+  - sensor.first_floor_temperature
+  - sensor.ground_floor_temperature
+  end: '{{now().replace(hour=0).replace(minute=0).replace(second=0) }}'
+  duration:
+    hours: 24
+
+- platform: average
+  name: 'Home Temperature Average'
+  entities:
+  - sensor.first_floor_temperature
+  - sensor.ground_floor_temperature
+  duration:
+    hours: 24
+
+- platform: average
+  name: 'Outside Temperature Average'
+  entities:
+  - sensor.domek_outdoor_temperature
+  duration:
+    hours: 24
