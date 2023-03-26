@@ -13,6 +13,15 @@
   action:
   - service: input_number.set_value
     data_template:
+      entity_id: input_number.living_room_temp_target
+      value: >
+        {% set currentLvTarget = states('input_number.living_room_temp_target')|float %}
+        {% set currentGfTarget = states('input_number.ground_floor_temp_target')|float %}
+        {% set gfTempTarget  = state_attr('climate.ground_floor', 'temperature')|float %}
+        {% set lvTempTarget = (gfTempTarget | round(1, 'half', 0)) - 2.5 if (gfTempTarget != currentGfTarget) else currentLvTarget %}
+        {{ lvTempTarget }}  
+  - service: input_number.set_value
+    data_template:
       entity_id: input_number.ground_floor_temp_target
       value: >
         {% set gfTempTarget  = state_attr('climate.ground_floor', 'temperature')|float %}
@@ -21,7 +30,7 @@
     target:
       entity_id: input_select.living_room_hvac_mode
     data:
-      option: "{{ 'off' if (states('climate.ground_floor') == 'off') else 'heat' }}"
+      option: "{{ 'off' if (states('climate.ground_floor') == 'off' or state_attr('climate.ground_floor', 'temperature')|float <=18 ) else 'heat' }}"
     
   mode: single
 
@@ -44,15 +53,17 @@
   - condition: time
     after: "06:30:00"
     before: "21:00:00"
+  # Before adjusting, make sure it is in heating more, and targets are synced first 
   - condition: template
     value_template: >-
-      {{ states('climate.lounge') == 'heat' }}
+      {{ (states('climate.lounge') == 'heat') and (state_attr('climate.lounge', 'temperature')|float == states('input_number.living_room_temp_target')|float) }}
   action:
   - service: input_number.set_value
     data_template:
       entity_id: input_number.living_room_temp_target
       value: >
-        {% set gfTempTarget  = state_attr('climate.lounge', 'temperature')|float %}
+        {#% set lrAcTempTarget  = state_attr('climate.lounge', 'temperature')|float %#}
+        {% set lrTempTarget  = states('input_number.living_room_temp_target')|float %}
         {% set gfTemp        = states('sensor.ground_floor_temperature')|float %}
         {% set gfTempAvg     = states('sensor.ground_floor_temperature_30min_average')|float %}
         {# Negative "gf30minDelta" means temp is dropping #}
@@ -65,24 +76,23 @@
         {# Avoid short cycling (after start-up, manual change or auto-adjustment) #}
         {% set targetlastChanged = (as_timestamp(now()) - as_timestamp(states.input_number.living_room_temp_target.last_changed)|int)/60 %}
         {% set statuslastChanged = (as_timestamp(now()) - as_timestamp(states.climate.lounge.last_changed)|int)/60 %}
-        {% set canAdjust = true if (targetlastChanged > manualTempCycle and statuslastChanged > manualTempCycle) else false %}
-        {% set tempTarget = gfTempTarget %}
+        {% set canAdjust = true if (targetlastChanged > manualTempCycle and statuslastChanged > manualTempCycle/2) else false %}
+        {% set tempTarget = lrTempTarget %}
         {# Change the target if either outside of the temperature brackets already, or expecting this with the delta applied #}
         {# In rare scenarios when the temp is rising fast, if alread seeing double the high target allow reducing temp in half the cycle time #}
-        {% set tempTarget = tempTarget + 0.5 if ((gfTemp <= lowTarget  or gfTemp + gf30minDelta <= lowTarget)  and canAdjust) else tempTarget %}
-        {% set tempTarget = tempTarget - 0.5 if ((gfTemp >= highTarget or gfTemp + gf30minDelta >= highTarget) and canAdjust) 
-                                             or ((gfTemp + gf30minDelta >= highTarget + manualTempMargin) and targetlastChanged > manualTempCycle/2) else tempTarget %}
+        {% set tempTarget = tempTarget + 0.5 if ((gfTemp <= lowTarget  or gfTemp + gf30minDelta/2 <= lowTarget)  and canAdjust) else tempTarget %}
+        {% set tempTarget = tempTarget - 0.5 if ((gfTemp >= highTarget or gfTemp + gf30minDelta/2 >= highTarget) and canAdjust) 
+                                             or ((gfTemp + gf30minDelta >= highTarget + manualTempMargin*2) and targetlastChanged > manualTempCycle/2) else tempTarget %}
         {{ tempTarget }}
-#  - service: climate.set_temperature
-#    data_template:
-#      entity_id: climate.lounge
-#      temperature: "{{ states('input_number.living_room_temp_target') }}"
   mode: single
 
+# Update AC target temperature if 'living_room_temp_target' has changed (on-change) or refresh from current status (re-sync) in case unit becomes unavailable
 - id: "1022226653322"
-  alias: Air Conditioning - Update living room target temp
-  description: "Adjusts the target temperature of the living room unit"
+  alias: Air Conditioning - Update living room target temperature
+  description: "Updates the target temperature of the living room unit (climate.lounge) based on 'living_room_temp_target' input"
   trigger:
+  - platform: time_pattern
+    minutes: "/10"  
   - platform: state
     entity_id:
     - input_number.living_room_temp_target
@@ -97,10 +107,13 @@
       temperature: "{{ states('input_number.living_room_temp_target') }}"
   mode: single
 
+# Update AC on/off state if HVAC mode has changed (on-change) or refresh from current status (re-sync) in case unit becomes unavailable
 - id: "1022226653399"
   alias: Air Conditioning - Update on/off state
-  description: "Adjusts the on/off state of the living room unit"
+  description: "Updates the on/off state of the living room unit (climate.lounge) based on 'living_room_hvac_mode' input"
   trigger:
+  - platform: time_pattern
+    minutes: "/10"  
   - platform: state
     entity_id:
     - input_select.living_room_hvac_mode

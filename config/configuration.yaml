@@ -34,14 +34,14 @@ input_number:
   # Min 10 (to avoid going up to quickly), step every 5min to easier use
   ground_floor_temp_target_min_cycle_duration:
     name: ground_floor_temp_target_min_cycle_duration
-    initial: 20
+    initial: 30
     min: 1
     max: 60
     step: 1
 
   ground_floor_temp_target_margin:
     name: ground_floor_temp_target_margin
-    initial: 0.3
+    initial: 0.5
     min: 0.1
     max: 1.0
     step: 0.1
@@ -57,8 +57,8 @@ input_number:
 
   living_room_temp_target:
     name: living_room_temp_target
-    initial: 18.0
-    min: 17.5
+    initial: 18.5
+    min: 15.5
     max: 22.5
     step: 0.5
     unit_of_measurement: "°C"
