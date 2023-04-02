@@ -578,7 +578,7 @@ template:
     # Logic divided into base conditions (bc) that apply regardless, and battery/solar specific
     - name: "Request 3kW Immersion"
       state: >
-        {% set alreadyOn = is_state('switch.sonoff_100168acb6', 'on')  %}
+        {% set alreadyOn = is_state('switch.sonoff_100168acb6', 'on')|int(default=0)  %}
         {% set heatingPower = states('sensor.sonoff_100168acb6_power')|float(default=0) %}
         {% set batteryCharging = states('sensor.solax_local_battery_power_adjusted')|int %}
         {% set pv = states('sensor.solax_local_pv_output')|int %}
@@ -601,6 +601,27 @@ template:
                 or (pv >  500 and alreadyOn==true  and batteryLevel >= 80)                
                 or (pv >  200 and alreadyOn==false and batteryLevel >  90) 
                 or (pv >  200 and alreadyOn==true  and batteryLevel >= 90)) }}
+
+  - binary_sensor:
+    - name: "Request Tesla Charger"
+      state: >
+        {% set alreadyOn = is_state('switch.outdoor_lights', 'on') %}
+        {% set batteryCharging = states('sensor.solax_local_battery_power_adjusted')|int %}
+        {% set pv = states('sensor.solax_local_pv_output')|int %}
+        {% set feedIn = states('sensor.solax_local_feedin_power')|int %}
+        {% set load = states('sensor.solax_local_load_power')|int %}
+        {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
+        {% set sparePower = feedIn + batteryCharging %}
+        {# (feedIn > -100) and #}
+        {% set bc = (feedIn > -150) and ((alreadyOn==false and load < 3500) or (alreadyOn==true and load < 5500)) %}
+        {{ bc and ((pv > 2800 and alreadyOn==false and sparePower > 3000 ) 
+                or (pv > 2800 and alreadyOn==true  and sparePower >  800 ) 
+                or (pv > 2200 and alreadyOn==false and sparePower > 2400 and batteryLevel >  70 ) 
+                or (pv > 2200 and alreadyOn==true  and sparePower >  200 and batteryLevel >= 70 ) 
+                or (pv > 1600 and alreadyOn==false and sparePower > 1000 and batteryLevel >  80 ) 
+                or (pv > 1600 and alreadyOn==true                        and batteryLevel >= 80 ) 
+                or (pv > 1000 and alreadyOn==false                       and batteryLevel >  90 ) 
+                or (pv > 1000 and alreadyOn==true                        and batteryLevel >= 90 )) }}
 
 sensor: !include sensor.yaml
 
