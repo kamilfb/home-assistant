@@ -6,8 +6,8 @@
     entity_id: binary_sensor.request_tesla_charger
     for:
       hours: 0
-      minutes: 5
-      seconds: 0
+      minutes: 2
+      seconds: 30
     to: "on"
   condition: 
   - condition: time
@@ -18,6 +18,40 @@
     device_id: ea5104db6def72c74cac364dd24eb9fa
     entity_id: switch.outdoor_lights
     domain: switch
+  - type: turn_on
+    device_id: 7615a9a5ac17be699f02d3259908515c
+    entity_id: switch.charger
+    domain: switch
+  mode: single
+
+- id: '1672237770659'
+  alias: Sinks - Tesla Charger - Solar adjust
+  description: "Adjusts the amps used by the charger if house load is too high"
+  trigger:
+  - platform: time_pattern
+    seconds: "/15"
+  condition: 
+  - type: is_charging
+    condition: device
+    device_id: 7615a9a5ac17be699f02d3259908515c
+    entity_id: binary_sensor.charging
+    domain: binary_sensor
+  action:
+  - service: number.set_value
+    target:
+      entity_id: number.charging_amps
+    data:
+      value: >
+            {% set load = states('sensor.solax_local_load_power')|int %}
+            {% set immAlreadyOn = is_state('switch.sonoff_100168acb6', 'on')|int(default=0) %}
+            {% set heatingPower = states('sensor.sonoff_100168acb6_power')|float(default=0) %}
+            {% set adjust = ((load - 5500) / 240)|float|round(0, 'ceil', 0) %}
+            {% set amps = states('number.charging_amps')|int %}
+            {# runs at 2kW (9A) to allow immersion to run at the same time (3kW), with enough room for house load and staying under 5.5kW #}
+            {# if immersion already full, increase to 10A #}
+            {% set maxAmps = 10 if ((immAlreadyOn==true and heatingPower < 1000) or (immAlreadyOn==false and load > 3100)) else 9 %}
+            {% set target = amps - adjust if (amps - adjust <= maxAmps) else maxAmps %}
+            {{ target if (target >= 5) else 5 }}
   mode: single
 
 - id: '1672233470677'
@@ -59,7 +93,7 @@
     entity_id: binary_sensor.request_tesla_charger
     for:
       hours: 0
-      minutes: 5
+      minutes: 10
       seconds: 0
     to: "off"
   condition: 
@@ -70,6 +104,10 @@
   - type: turn_off
     device_id: ea5104db6def72c74cac364dd24eb9fa
     entity_id: switch.outdoor_lights
+    domain: switch
+  - type: turn_off
+    device_id: 7615a9a5ac17be699f02d3259908515c
+    entity_id: switch.charger
     domain: switch
   mode: single
 
@@ -380,6 +418,46 @@
             {{ states('switch.sonoff_100168acb6') == 'on' or repeat.index == 3 }}
   mode: single
 
+- id: '11991293920222'
+  alias: Sinks - Hot Water - Pause immersion heater (temperature reached)
+  description: ''
+  trigger:
+  - platform: numeric_state
+    entity_id: sensor.sonoff_100168acb6_power
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    below: 100
+  condition:
+  - condition: state
+    entity_id: switch.sonoff_100168acb6
+    state: "on"
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+  action:
+  - service: automation.turn_off
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.sinks_put_3kw_immersion_heater_excess_solar
+  - service: switch.turn_off
+    data: {}
+    target:
+      entity_id: switch.sonoff_100168acb6
+  - delay:
+      hours: 0
+      minutes: 30
+      seconds: 0
+      milliseconds: 0
+  - service: automation.turn_on
+    data: {}
+    target:
+      entity_id: automation.sinks_put_3kw_immersion_heater_excess_solar
+  mode: single
+
 - id: '11001293920394'
   alias: Sinks - Hot Water - Run immersion heater (evening top-up in case of low solar)
   description: ''
@@ -515,7 +593,7 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 30
+      seconds: 45
     to: "off"
   - platform: time
     at: "02:25:00"      
@@ -656,6 +734,16 @@
       entity_id: select.daily_hot_water
     data:
       option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.daily_tesla_charging
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_tesla_charging
+    data:
+      option: "{{ tariff }}"
 
 - id: "1302984839203"
   alias: Tariffs - Switch electricity tariff
@@ -689,6 +777,16 @@
   - service: select.select_option
     target:
       entity_id: select.daily_hot_water
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.daily_tesla_charging
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_tesla_charging
     data:
       option: "{{ tariff }}"
   - service: input_number.set_value
