@@ -45,11 +45,12 @@
             {% set load = states('sensor.solax_local_load_power')|int %}
             {% set immAlreadyOn = is_state('switch.sonoff_100168acb6', 'on')|int(default=0) %}
             {% set heatingPower = states('sensor.sonoff_100168acb6_power')|float(default=0) %}
+            {% set immAutomationOn = is_state('automation.sinks_put_3kw_immersion_heater_excess_solar', 'on') %}
             {% set adjust = ((load - 5500) / 240)|float|round(0, 'ceil', 0) %}
             {% set amps = states('number.charging_amps')|int %}
             {# runs at 2kW (9A) to allow immersion to run at the same time (3kW), with enough room for house load and staying under 5.5kW #}
             {# if immersion already full, increase to 10A #}
-            {% set maxAmps = 10 if ((immAlreadyOn==true and heatingPower < 1000) or (immAlreadyOn==false and load > 3100)) else 9 %}
+            {% set maxAmps = 10 if ((immAlreadyOn==true and heatingPower < 1000) or (immAlreadyOn==false and load > 3100) or (immAutomationOn==false)) else 9 %}
             {% set target = amps - adjust if (amps - adjust <= maxAmps) else maxAmps %}
             {{ target if (target >= 5) else 5 }}
   mode: single
@@ -347,20 +348,23 @@
             {% set max_battery_target = states('input_number.max_battery_target')|int %}
             {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
             {% set morningHourlyLoad = 0.25 %}
-            {% set morningHourlyHeating = 0.9 %}
-            {% set secondsToSunRising = (today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('05:30')).seconds %}
+            {# TODO: temperature-dependent heating setting 5C (100%); 20C (0%) #}
+            {% set morningHourlyHeating = 1.0 %}
+            {# Only consider time to rising if during the peak hours #}
+            {% set secondsToSunRising = 0 if (today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) < today_at('05:30')) else (today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('05:30')).seconds %}
             {% set morningDemandKWh = (secondsToSunRising/60/60*morningHourlyLoad + morningHourlyHeating*2.5)|round %}
             {% set morningDemand = (morningDemandKWh/6.2*100)|round %}
             {% set minTarget = 10 + morningDemand - 4 %}
             {% if is_number(solar) %}
-              {% set target = max_battery_target  if (solar|float <= 5) else target %}  
-              {% set target = minTarget + 60 if (solar|float >  5 and solar|float <=  6) else target %}
-              {% set target = minTarget + 40 if (solar|float >  6 and solar|float <=  7) else target %}
-              {% set target = minTarget + 25 if (solar|float >  7 and solar|float <=  8) else target %}
-              {% set target = minTarget + 15 if (solar|float >  8 and solar|float <=  9) else target %}
-              {% set target = minTarget + 10 if (solar|float >  9 and solar|float <= 10) else target %}
-              {% set target = minTarget +  5 if (solar|float > 10 and solar|float <= 11) else target %}
-              {% set target = minTarget      if (solar|float > 11) else target %}
+              {% set target = max_battery_target  if (solar|float <= 6) else target %}  
+              {% set target = minTarget + 70 if (solar|float >  6 and solar|float <=  7) else target %}
+              {% set target = minTarget + 55 if (solar|float >  7 and solar|float <=  8) else target %}
+              {% set target = minTarget + 40 if (solar|float >  8 and solar|float <=  9) else target %}
+              {% set target = minTarget + 25 if (solar|float >  9 and solar|float <= 10) else target %}
+              {% set target = minTarget + 15 if (solar|float > 10 and solar|float <= 11) else target %}
+              {% set target = minTarget + 10 if (solar|float > 11 and solar|float <= 12) else target %}
+              {% set target = minTarget +  5 if (solar|float > 12 and solar|float <= 13) else target %}
+              {% set target = minTarget      if (solar|float > 13) else target %}
             {% endif %} 
             {% set target = target if (target > min_battery_target) else min_battery_target %} 
             {{ target if (target <= max_battery_target) else max_battery_target }}
@@ -437,6 +441,9 @@
       hours: 0
       minutes: 0
       seconds: 30
+  - condition: time
+    after: "07:30:00"
+    before: "18:30:00"   
   action:
   - service: automation.turn_off
     data:
@@ -449,7 +456,7 @@
       entity_id: switch.sonoff_100168acb6
   - delay:
       hours: 0
-      minutes: 30
+      minutes: 60
       seconds: 0
       milliseconds: 0
   - service: automation.turn_on
@@ -602,10 +609,12 @@
   - platform: time
     at: "04:25:00"       
   - platform: time
-    at: "05:25:00"   
+    at: "05:25:00"
+  - platform: time
+    at: "19:15:00"   
   condition: 
   - condition: time
-    after: "07:15:00"
+    after: "02:15:00"
     before: "19:15:00"   
   action:
   - repeat:
@@ -716,13 +725,22 @@
     event: sunrise
     offset: 0
     variables:
-      tariff: solar
+      tariff: >- 
+        {{ "solar" if today_at('05:30') <= now() else "offpeak" }}
   - platform: sun
     event: sunset
     offset: 0
     variables:
       tariff: peak
-  condition: []
+  - platform: time
+    at: "23:30:00"
+    variables:
+      tariff: offpeak
+  - platform: time
+    at: "05:30:00"
+    variables:
+      tariff: >- 
+        {{ "peak" if (is_state('sun.sun', "below_horizon")) else "solar" }}
   action:     
   - service: select.select_option
     target:
@@ -769,32 +787,12 @@
       entity_id: select.monthly_grid
     data:
       option: "{{ tariff }}"      
-  - service: select.select_option
-    target:
-      entity_id: select.monthly_hot_water
-    data:
-      option: "{{ tariff }}"
-  - service: select.select_option
-    target:
-      entity_id: select.daily_hot_water
-    data:
-      option: "{{ tariff }}"
-  - service: select.select_option
-    target:
-      entity_id: select.daily_tesla_charging
-    data:
-      option: "{{ tariff }}"
-  - service: select.select_option
-    target:
-      entity_id: select.monthly_tesla_charging
-    data:
-      option: "{{ tariff }}"
   - service: input_number.set_value
     target:
       entity_id: input_number.electricity_tariff_cost
     data:
       value: >
-        {% set cost = dict(peak=0.42, offpeak=0.10) %}
+        {% set cost = dict(peak=0.3927, offpeak=0.075) %}
         {{ cost[tariff] }}
   mode: single
 

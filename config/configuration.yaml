@@ -621,17 +621,17 @@ template:
         {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
         {% set sparePower = feedIn + batteryCharging %}
         {# (feedIn > -100) and #}
-        {% set bc = (feedIn > -250) and ((alreadyOn==false and load < 3500) or (alreadyOn==true and load < 5500) or (prioritiseEv==true and immPower > 2000 and load < 5500)) %}
+        {% set bc = (feedIn > -250 and sparePower > -1000) and ((alreadyOn==false and load < 3500) or (alreadyOn==true and load < 5500) or (prioritiseEv==true and immPower > 2000 and load < 5500)) %}
         {{ bc and ((pv > 3000 and alreadyOn==false and sparePower > 3000 )
                 or (pv > 3000 and alreadyOn==true  and sparePower >  600 ) 
                 or (pv > 2500 and alreadyOn==false and prioritiseEv==true and batteryLevel >  35) 
                 or (pv > 2500 and alreadyOn==true  and prioritiseEv==true and batteryLevel >= 30) 
-                or (pv > 2400 and alreadyOn==false                       and batteryLevel >  70 ) 
-                or (pv > 2400 and alreadyOn==true                        and batteryLevel >= 65 ) 
-                or (pv > 1800 and alreadyOn==false                       and batteryLevel >  80 ) 
-                or (pv > 1800 and alreadyOn==true                        and batteryLevel >= 75 ) 
-                or (pv > 1200 and alreadyOn==false                       and batteryLevel >  90 ) 
-                or (pv > 1200 and alreadyOn==true                        and batteryLevel >= 85 )) }}
+                or (pv > 2200 and alreadyOn==false and sparePower > 0     and batteryLevel >  80 ) 
+                or (pv > 2200 and alreadyOn==true  and sparePower > -500  and batteryLevel >= 75 ) 
+                or (pv > 1600 and alreadyOn==false and sparePower > 0     and batteryLevel >  85 ) 
+                or (pv > 1600 and alreadyOn==true  and sparePower > -250  and batteryLevel >= 80 ) 
+                or (pv > 1000 and alreadyOn==false and sparePower > 0     and batteryLevel >  92 ) 
+                or (pv > 1000 and alreadyOn==true  and sparePower > 0     and batteryLevel >= 90 )) }}
 
 sensor: !include sensor.yaml
 
@@ -664,11 +664,11 @@ utility_meter:
     net_consumption: true
 
   # To prove Solax Inverter does not meter correctly
-  daily_inverter_positive:
-    source: sensor.solax_local_inverter_aggregated_energy
-    name: Daily Yield Positive
-    cycle: daily
-    net_consumption: false
+  #daily_inverter_positive:
+  #  source: sensor.solax_local_inverter_aggregated_energy
+  #  name: Daily Yield Positive
+  #  cycle: daily
+  #  net_consumption: false
 
   daily_load:
     source: sensor.solax_local_load_aggregated_energy
@@ -728,10 +728,10 @@ utility_meter:
       - peak
       - offpeak
 
-  daily_electric_heater:
-    source: sensor.electric_heater_aggregated_energy
-    name: Daily Electric Heater 
-    cycle: daily
+#  daily_electric_heater:
+#    source: sensor.electric_heater_aggregated_energy
+#    name: Daily Electric Heater 
+#    cycle: daily
 
   # Need to use powercalc for more granular monitoring as the total gets aggregated too slowly by Sonoff
   daily_hot_water:
@@ -747,6 +747,24 @@ utility_meter:
   monthly_hot_water:
     source: sensor.sonoff_100168acb6_energy
     name: Hot Water
+    cycle: monthly
+    tariffs:
+      - solar
+      - peak
+      - offpeak
+
+  daily_zappi_charging:
+    source: sensor.myenergi_home_green_energy_today
+    name: Daily Zappi Charging
+    cycle: daily
+    tariffs:
+      - solar
+      - peak
+      - offpeak
+
+  monthly_zappi_charging:
+    source: sensor.myenergi_home_green_energy_today
+    name: Monthly Zappi Charging
     cycle: monthly
     tariffs:
       - solar
