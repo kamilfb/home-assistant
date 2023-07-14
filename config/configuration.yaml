@@ -14,6 +14,8 @@ powercalc:
 #  email: !secret daikin_email
 #  password: !secret daikin_pwd
 
+# Example configuration.yaml entry
+
 logger:
   default: info
   logs:
@@ -552,12 +554,14 @@ template:
       unique_id: solax_local_self_use_aggregated_energy
       state: "{{ states('sensor.solax_local_inverter_aggregated_energy') | float(default=0) - states('sensor.solax_local_grid_export_aggregated_energy') | float(default=0) }}"
       unit_of_measurement: "kWh"
+      state_class: measurement
       device_class: "energy"
 
     # Total today's heap pump
     - name: heat_pump_today
       unique_id: heat_pump_today
       unit_of_measurement: "kWh"
+      state_class: measurement
       device_class: "energy"
       state: "{{ states('sensor.lounge_daily_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_daily_heat_energy_consumption') | float(default=0)}}"
 
@@ -567,6 +571,14 @@ template:
       unit_of_measurement: "kWh"
       device_class: "energy"
       state: "{{ states('sensor.lounge_yearly_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_yearly_heat_energy_consumption') | float(default=0)}}"
+
+    # Total today's zappi
+    - name: zappi_today
+      unique_id: zappi_today
+      unit_of_measurement: "kWh"
+      state_class: measurement
+      device_class: "energy"
+      state: "{{ states('sensor.myenergi_home_green_energy_today') | float(default=0) + states('sensor.myenergi_zappi_22670748_energy_used_today') | float(default=0) }}"
 
     # Solar forecast for next day or current day (16:00 is cutover for next day)
     - name: energy_production_upcoming
@@ -754,7 +766,7 @@ utility_meter:
       - offpeak
 
   daily_zappi_charging:
-    source: sensor.myenergi_home_green_energy_today
+    source: sensor.zappi_today
     name: Daily Zappi Charging
     cycle: daily
     tariffs:
@@ -763,7 +775,7 @@ utility_meter:
       - offpeak
 
   monthly_zappi_charging:
-    source: sensor.myenergi_home_green_energy_today
+    source: sensor.zappi_today
     name: Monthly Zappi Charging
     cycle: monthly
     tariffs:
