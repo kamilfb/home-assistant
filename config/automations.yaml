@@ -1,3 +1,45 @@
+- id: '1000000000001'
+  alias: "Sinks - Zappi - Battery getting full"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solax_local_battery_soc
+      for:
+        hours: 0
+        minutes: 1
+        seconds: 0
+      above: 90
+  condition: []
+  action:
+    - device_id: bd40256cc856744ab22471c444adf02e
+      domain: number
+      entity_id: number.myenergi_zappi_22670748_minimum_green_level
+      type: set_value
+      value: 40
+    - type: turn_on
+      device_id: 81156b52303e441076758ad3e9620bfa
+      entity_id: switch.octopus_bump_charge
+      domain: switch
+
+- id: '1000000000002'
+  alias: "Sinks - Zappi - Battery has capacity"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solax_local_battery_soc
+      for:
+        hours: 0
+        minutes: 1
+        seconds: 0
+      below: 90
+  condition: []
+  action:
+    - device_id: bd40256cc856744ab22471c444adf02e
+      domain: number
+      entity_id: number.myenergi_zappi_22670748_minimum_green_level
+      type: set_value
+      value: 100
+
 - id: '1672233470659'
   alias: Sinks - Tesla Charger - Solar start (excess solar)
   description: ''
@@ -36,6 +78,12 @@
     device_id: 7615a9a5ac17be699f02d3259908515c
     entity_id: binary_sensor.charging
     domain: binary_sensor
+  - type: is_power
+    condition: device
+    device_id: ea5104db6def72c74cac364dd24eb9fa
+    entity_id: sensor.outdoor_lights_current_consumption
+    domain: sensor
+    above: 100    
   action:
   - service: number.set_value
     target:
@@ -763,9 +811,12 @@
     data:
       option: "{{ tariff }}"
 
+# Tariff selection for meters (default to offpeak for manual runs)
 - id: "1302984839203"
   alias: Tariffs - Switch electricity tariff
   description: "Set electricity tariff for utility sensor"
+  variables:
+    tariff: offpeak
   trigger:
   - platform: time
     at: "23:30:00"
@@ -792,7 +843,7 @@
       entity_id: input_number.electricity_tariff_cost
     data:
       value: >
-        {% set cost = dict(peak=0.3927, offpeak=0.075) %}
+        {% set cost = dict(peak=0.2978, offpeak=0.075) %}
         {{ cost[tariff] }}
   mode: single
 
