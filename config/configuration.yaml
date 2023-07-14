@@ -10,12 +10,6 @@ frontend:
 powercalc:
 #  create_utility_meters: true
 
-#daikin_residential:
-#  email: !secret daikin_email
-#  password: !secret daikin_pwd
-
-# Example configuration.yaml entry
-
 logger:
   default: info
   logs:
