@@ -69,19 +69,19 @@ input_number:
     name: min_battery_target
     initial: 11
     min: 10
-    max: 92
+    max: 94
 
   max_battery_target:
     name: max_battery_target
-    initial: 92
+    initial: 94
     min: 10
-    max: 92
+    max: 94
 
   new_battery_target:
     name: new_battery_target
-    initial: 10
+    initial: 94
     min: 10
-    max: 92
+    max: 94
 
   evening_immersion_target:
     name: evening_immersion_target
@@ -641,7 +641,8 @@ template:
 
 sensor: !include sensor.yaml
 
-sensor powercalc_label: !include powercalc.yaml
+powercalc: 
+  sensors: !include powercalc.yaml
 
 utility_meter:
 
