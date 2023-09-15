@@ -586,6 +586,17 @@ template:
               {{ (states('sensor.energy_production_tomorrow')) }}
             {% endif %}
 
+    - name: 'Daily Hot Water Total'
+      unique_id: daily_hot_water_total
+      device_class: energy
+      unit_of_measurement: kWh
+      state: >
+        {% if is_number(states('sensor.daily_hot_water_offpeak')) and is_number(states('sensor.daily_hot_water_peak')) and is_number(states('sensor.daily_hot_water_solar')) %}
+          {{ states('sensor.daily_hot_water_offpeak') | float + states('sensor.daily_hot_water_peak') | float + states('sensor.daily_hot_water_solar') | float }}
+        {% else %}
+          None
+        {% endif %}
+
   - binary_sensor:
     # Logic divided into base conditions (bc) that apply regardless, and battery/solar specific
     - name: "Request 3kW Immersion"
@@ -599,9 +610,13 @@ template:
         {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
         {% set sparePower = feedIn + batteryCharging %}
         {% set bc = (feedIn > -200) and (
+                 (alreadyOn==false and load < 2500) 
+              or (alreadyOn==true  and load < 5500)) %}
+        {% set bc2 = (feedIn > -200) and (
                  ((alreadyOn==false or heatingPower < 1000) and load < 2500) 
               or (alreadyOn==true and heatingPower > 1000 and load < 5500)) %}
-        {{ bc and ((pv > 3400 and alreadyOn==false and sparePower > 3200) 
+        {# 
+        (pv > 3400 and alreadyOn==false and sparePower > 3200) 
                 or (pv > 3400 and alreadyOn==true  and sparePower > 100)
                 or (pv > 2800 and alreadyOn==false and batteryLevel >  55) 
                 or (pv > 2800 and alreadyOn==true  and batteryLevel >= 50)
@@ -611,8 +626,11 @@ template:
                 or (pv > 1400 and alreadyOn==true  and batteryLevel >= 70)
                 or (pv >  800 and alreadyOn==false and batteryLevel >  85)
                 or (pv >  800 and alreadyOn==true  and batteryLevel >= 80)                
-                or (pv >  200 and alreadyOn==false and batteryLevel >  93)
-                or (pv >  200 and alreadyOn==true  and batteryLevel >= 90)) }}
+                or 
+        #}
+
+        {{ bc and ((pv >  500 and alreadyOn==false and batteryLevel >  93)
+                or (pv >  500 and alreadyOn==true  and batteryLevel >= 90)) }}
 
   - binary_sensor:
     - name: "Request Tesla Charger"
