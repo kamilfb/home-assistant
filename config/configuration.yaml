@@ -770,7 +770,8 @@ utility_meter:
       - offpeak
 
   monthly_hot_water:
-    source: sensor.sonoff_100168acb6_energy
+    #source: sensor.sonoff_100168acb6_energy
+    source: sensor.immersion_heater_aggregated_energy
     name: Hot Water
     cycle: monthly
     tariffs:
@@ -782,6 +783,7 @@ utility_meter:
     source: sensor.zappi_today
     name: Daily Zappi Charging
     cycle: daily
+    net_consumption: true
     tariffs:
       - solar
       - peak
@@ -791,6 +793,7 @@ utility_meter:
     source: sensor.zappi_today
     name: Monthly Zappi Charging
     cycle: monthly
+    net_consumption: true
     tariffs:
       - solar
       - peak
