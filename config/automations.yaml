@@ -213,9 +213,9 @@
       seconds: 30
   condition: 
   - condition: time
-    after: "06:30:00"
-    before: "21:00:00"
-  # Before adjusting, make sure it is in heating more, and targets are synced first 
+    after: "03:30:00"
+    before: "21:30:00"
+  # Before adjusting, make sure it is in heating mode, and targets are synced first 
   - condition: template
     value_template: >-
       {{ (states('climate.lounge') == 'heat') and (state_attr('climate.lounge', 'temperature')|float == states('input_number.living_room_temp_target')|float) }}
@@ -808,6 +808,16 @@
   - service: select.select_option
     target:
       entity_id: select.monthly_tesla_charging
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.daily_zappi_charging
+    data:
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_zappi_charging
     data:
       option: "{{ tariff }}"
 
