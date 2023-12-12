@@ -55,7 +55,23 @@
   # 5 - Allowed discharge start
   # 6 - Allowed discharge end
   # 7 - Charge/discharge Period2 Enabled (0 for disabled, 1 for enabled)
-  value_template: "{{ '[' ~ value.split(',')[28] ~ ',' ~ value.split(',')[29] ~ ',' ~ value.split(',')[30] ~ ',' ~ value.split(',')[36] ~ ',' ~ value.split(',')[37] ~ ',' ~ value.split(',')[38] ~ ',' ~ value.split(',')[39] ~ ',' ~ value.split(',')[40] ~ ']' }}"
+  # 8 - Forced charge start (2nd)
+  # 9 - Forced charge end (2nd)
+  # 10 - Inverter mode - 0: self use, 1: feed in priority, 2: back up, 3: manual
+  # 11 - Manual mode behaviour - 0: do nothing, 1: forced charge, 2: forced discharge
+  value_template: "{{ '[' ~ 
+                      value.split(',')[28] ~ ',' ~ 
+                      value.split(',')[29] ~ ',' ~ 
+                      value.split(',')[30] ~ ',' ~ 
+                      value.split(',')[36] ~ ',' ~ 
+                      value.split(',')[37] ~ ',' ~ 
+                      value.split(',')[38] ~ ',' ~ 
+                      value.split(',')[39] ~ ',' ~ 
+                      value.split(',')[40] ~ ',' ~ 
+                      value.split(',')[41] ~ ',' ~ 
+                      value.split(',')[42] ~ ',' ~ 
+                      value.split(',')[27] ~ ',' ~ 
+                      value.split(',')[35] ~ ']' }}"
 
 # Smooth out solar forecast as it often gets very choppy
 - platform: filter
@@ -82,22 +98,6 @@
   - sensor.ground_floor_temperature
   duration:
     minutes: 25
-
-#- platform: average
-#  name: 'First Floor Temperature Average'
-#  entities:
-#  - sensor.first_floor_temperature
-#  duration:
-#    hours: 24
-
-#- platform: average
-#  name: 'Yesterdays Home Temperature Average'
-#  entities:
-#  - sensor.first_floor_temperature
-#  - sensor.ground_floor_temperature
-#  end: '{{now().replace(hour=0).replace(minute=0).replace(second=0) }}'
-#  duration:
-#    hours: 24
 
 - platform: average
   name: 'Home Temperature Average'

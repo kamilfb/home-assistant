@@ -1,0 +1,389 @@
+
+- id: '1672233470659'
+  alias: Sinks - Heating - Start electric heater (excess solar)
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_2kw_heater
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+    to: "on"
+  action:
+  - type: turn_on
+    device_id: 273edc8e0b6dcd4117de51becf83b2d0
+    entity_id: switch.heater
+    domain: switch
+  mode: single
+
+- id: '1634984084830'
+  alias: Sinks - Heating - Stop electric heater
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_2kw_heater
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+    to: "off"
+  action:
+  - type: turn_off
+    device_id: 273edc8e0b6dcd4117de51becf83b2d0
+    entity_id: switch.heater
+    domain: switch
+  mode: single
+
+
+- id: '1672233470659'
+  alias: Sinks - Tesla Charger - Solar start (excess solar)
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_tesla_charger
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 30
+    to: "on"
+  condition: 
+  - condition: time
+    after: "06:00:00"
+    before: "22:00:00"  
+  action:
+  - type: turn_on
+    device_id: ea5104db6def72c74cac364dd24eb9fa
+    entity_id: switch.outdoor_lights
+    domain: switch
+  - type: turn_on
+    device_id: 7615a9a5ac17be699f02d3259908515c
+    entity_id: switch.charger
+    domain: switch
+  mode: single
+
+- id: '1672237770659'
+  alias: Sinks - Tesla Charger - Solar adjust
+  description: "Adjusts the amps used by the charger if house load is too high"
+  trigger:
+  - platform: time_pattern
+    seconds: "/15"
+  condition: 
+  - type: is_charging
+    condition: device
+    device_id: 7615a9a5ac17be699f02d3259908515c
+    entity_id: binary_sensor.charging
+    domain: binary_sensor
+  - type: is_power
+    condition: device
+    device_id: ea5104db6def72c74cac364dd24eb9fa
+    entity_id: sensor.outdoor_lights_current_consumption
+    domain: sensor
+    above: 100    
+  action:
+  - service: number.set_value
+    target:
+      entity_id: number.charging_amps
+    data:
+      value: >
+            {% set load = states('sensor.solax_local_load_power')|int %}
+            {% set immAlreadyOn = is_state('switch.sonoff_100168acb6', 'on')|int(default=0) %}
+            {% set heatingPower = states('sensor.sonoff_100168acb6_power')|float(default=0) %}
+            {% set immAutomationOn = is_state('automation.sinks_put_3kw_immersion_heater_excess_solar', 'on') %}
+            {% set adjust = ((load - 5500) / 240)|float|round(0, 'ceil', 0) %}
+            {% set amps = states('number.charging_amps')|int %}
+            {# runs at 2kW (9A) to allow immersion to run at the same time (3kW), with enough room for house load and staying under 5.5kW #}
+            {# if immersion already full, increase to 10A #}
+            {% set maxAmps = 10 if ((immAlreadyOn==true and heatingPower < 1000) or (immAlreadyOn==false and load > 3100) or (immAutomationOn==false)) else 9 %}
+            {% set target = amps - adjust if (amps - adjust <= maxAmps) else maxAmps %}
+            {{ target if (target >= 5) else 5 }}
+  mode: single
+
+- id: '1672233470677'
+  alias: Sinks - Tesla Charger - Night start 
+  description: ''
+  trigger:
+  - platform: time
+    at: "23:32:00" 
+  - platform: time
+    at: "02:32:00" 
+  action:
+  - service: >
+      {% if states('sensor.filtered_upcoming_solar_forecast') | float > 25 %}
+        switch.turn_off
+      {% else %}
+        switch.turn_on
+      {% endif %}
+    entity_id: switch.outdoor_lights
+  mode: single
+
+- id: '1634984084999'
+  alias: Sinks - Tesla Charger - Night stop
+  description: ''
+  trigger:
+  - platform: time
+    at: "05:28:00" 
+  action:
+  - type: turn_off
+    device_id: ea5104db6def72c74cac364dd24eb9fa
+    entity_id: switch.outdoor_lights
+    domain: switch
+  mode: single
+
+- id: '1634984084830'
+  alias: Sinks - Tesla Charger - Solar stop (low solar)
+  description: ''
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.request_tesla_charger
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+    to: "off"
+  condition: 
+  - condition: time
+    after: "06:00:00"
+    before: "22:00:00"
+  action:
+  - type: turn_off
+    device_id: ea5104db6def72c74cac364dd24eb9fa
+    entity_id: switch.outdoor_lights
+    domain: switch
+  - type: turn_off
+    device_id: 7615a9a5ac17be699f02d3259908515c
+    entity_id: switch.charger
+    domain: switch
+  mode: single
+
+
+- id: '12233445566789'
+  alias: Sinks - Hot Water - Set immersion target level
+  description: Set target immersion target heating level based on anticipated solar production
+  trigger:
+  - platform: time
+    at: "22:45:00"
+  - platform: time
+    at: "23:45:00"  
+  - platform: state
+    entity_id:
+    - input_number.night_min_immersion_target
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
+  condition: []
+  action:
+  - service: input_number.set_value
+    data_template:
+      entity_id: input_number.night_immersion_target
+      # Assumptions: 2.5kWh/h for 4hrs (10min pause), can use 2.5kWh for every 5kWh generated above 15kWh (to cater for weather fluctuation)
+      #              total capacity of the 210L tank is about 15kWh (from 5 to 65C)
+      #              at 5C outside, on average it could take 7.5kWh per night to heat to max, 
+      #              also daily average (night+day) was 7.5kWh so target shouldn't be more than 8kWh, minimum to up of 3kWh
+      #              end of night tariff 04:30am
+      # Note: instead of using separate tomorrow/today's forecasts, use a single state (energy_production_upcoming) and then its average over a few hours (filtered)
+      # Note: simple weather compensation adding kWh to target (+2 for below -3C, +1 for below 2C, -1 for above 12C, -2 for above 17C)
+      # Note: if todays solar top up was low, ignore upcoming forecast and heat to max
+      value: >
+        {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
+        {% set todaysSolarTopUp = states('sensor.daily_hot_water_solar')|float %}
+        {% set currentTemperature = state_attr('weather.forecast_home', 'temperature') %}
+        {% set min_immersion = states('input_number.night_min_immersion_target')|float %}
+        {% set weatherAdjustment = 0 %} 
+        {% if is_number(currentTemperature) %}
+          {% set weatherAdjustment =  2 if (currentTemperature|float                                   <= -3) else weatherAdjustment %}
+          {% set weatherAdjustment =  1 if (currentTemperature|float > -3 and currentTemperature|float <=  2) else weatherAdjustment %}
+          {% set weatherAdjustment =  0 if (currentTemperature|float >  2 and currentTemperature|float <= 12) else weatherAdjustment %}
+          {% set weatherAdjustment = -1 if (currentTemperature|float > 12 and currentTemperature|float <= 17) else weatherAdjustment %}
+          {% set weatherAdjustment = -2 if (currentTemperature|float > 17)                                    else weatherAdjustment %}
+        {% endif %} 
+        {% set solarThreshold = 15 %} 
+        {% set target = 8 + weatherAdjustment %} 
+        {% if is_number(solar) %}
+          {% set target = target - ((solar|float - solarThreshold)*2.5/5)|round(1) if (solar|float >  solarThreshold and todaysSolarTopUp > 2.5) else target %}          
+        {% endif %} 
+        {{ target if (target > min_immersion) else min_immersion }}
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 5
+      milliseconds: 0
+  - service: input_number.set_value
+    data_template:
+      entity_id: input_number.max_temp_idle_seconds
+      # Allow high idle time when target is high (super hot water), low in case high solar forecast (not so hot water)
+      value: >
+        {% set immersion = states('input_number.night_immersion_target') %}
+        {% set target = 180 %} 
+        {% if is_number(immersion) %}
+          {% set target =  30 if (immersion|float <= 2) else target %}  
+          {% set target =  60 if (immersion|float >  2 and immersion|float <= 3) else target %}
+          {% set target =  90 if (immersion|float >  3 and immersion|float <= 4) else target %}
+          {% set target = 120 if (immersion|float >  4 and immersion|float <= 5) else target %}
+          {% set target = 150 if (immersion|float >  5 and immersion|float <= 6) else target %}
+          {% set target = 180 if (immersion|float >  6 and immersion|float <= 7) else target %}
+          {% set target = 240 if (immersion|float >  7 and immersion|float <  8) else target %}
+          {% set target = 300 if (immersion|float >= 8) else target %}          
+        {% endif %} 
+        {{ target }}
+  mode: single
+
+- id: '1395837280000'
+  alias: Battery - Set solar battery target level
+  description: Set target battery level (charge from grid) based on anticipated solar production
+  trigger:
+  - platform: time
+    at: "23:30:00"
+  # If the forecast charges for worse, a last change to top up the battery  
+  - platform: time
+    at: "04:00:00"  
+  - platform: state
+    entity_id:
+    - input_number.min_battery_target
+    - input_number.max_battery_target
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+  condition: []
+  action:
+  - repeat:
+      sequence:
+      - service: input_number.set_value
+        data_template:
+          entity_id: input_number.new_battery_target
+          # Assumptions: hourly morning usage of 0.25kWh/h, battery capacity 6.2kWh, end of night tariff 05:30am, overcharging by 4-5% hence -4 of the target
+          # Assumptions: low solar range upped to cater for immersion top up (2kWh)
+          # Assumptions: 0.9kWh for heating per hour (heating from 0530 to 0730)
+          # Note: min target should be about 22% winter and 14% in summer
+          # Note: instead of using separate tomorrow/today's forecasts, use a single state (energy_production_upcoming) and then its average over a few hours (filtered)
+          value: >
+            {% set min_battery_target = states('input_number.min_battery_target')|int %}
+            {% set max_battery_target = states('input_number.max_battery_target')|int %}
+            {% set solar = states('sensor.filtered_upcoming_solar_forecast') %}
+            {% set morningHourlyLoad = 0.25 %}
+            {# TODO: temperature-dependent heating setting 5C (100%); 20C (0%) #}
+            {% set morningHourlyHeating = 1.0 %}
+            {# Only consider time to rising if during the peak hours #}
+            {% set secondsToSunRising = 0 if (today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) < today_at('05:30')) else (today_at(as_timestamp(states.sun.sun.attributes.next_rising)| timestamp_custom("%H:%M")) - today_at('05:30')).seconds %}
+            {% set morningDemandKWh = (secondsToSunRising/60/60*morningHourlyLoad + morningHourlyHeating*2.5)|round %}
+            {% set morningDemand = (morningDemandKWh/6.2*100)|round %}
+            {% set minTarget = 10 + morningDemand - 4 %}
+            {% if is_number(solar) %}
+              {% set target = max_battery_target  if (solar|float <= 6) else target %}  
+              {% set target = minTarget + 70 if (solar|float >  6 and solar|float <=  7) else target %}
+              {% set target = minTarget + 55 if (solar|float >  7 and solar|float <=  8) else target %}
+              {% set target = minTarget + 40 if (solar|float >  8 and solar|float <=  9) else target %}
+              {% set target = minTarget + 25 if (solar|float >  9 and solar|float <= 10) else target %}
+              {% set target = minTarget + 15 if (solar|float > 10 and solar|float <= 11) else target %}
+              {% set target = minTarget + 10 if (solar|float > 11 and solar|float <= 12) else target %}
+              {% set target = minTarget +  5 if (solar|float > 12 and solar|float <= 13) else target %}
+              {% set target = minTarget      if (solar|float > 13) else target %}
+            {% endif %} 
+            {% set target = target if (target > min_battery_target) else min_battery_target %} 
+            {{ target if (target <= max_battery_target) else max_battery_target }}
+      - service: rest_command.solax_local_set_charge_battery_from_grid
+        data:
+          # Max level to 92% to reduce battery wear. Minimum to 11% plus 4% overcharge
+          level: >
+            {{ states('input_number.new_battery_target') }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('sensor.solax_local_battery_charge_from_grid_to')|int == states('input_number.new_battery_target')|int or
+                repeat.index == 3 }}
+  mode: single
+
+
+# Always reset to the same state - i.e. no off-peak forced charging overnight
+- id: "1143938438939"
+  alias: Battery - Disable forced charge
+  description: "Allows for discharge if too much energy stored from previous day (default state)"
+  trigger:
+  - platform: time
+    at: "23:40:00"  
+  - platform: time
+    at: "23:50:00"
+  action:
+  - repeat:
+      sequence:
+#      - service: rest_command.solax_local_set_period2_enable
+#        data:
+#          # 1 = enabled, 0 = disabled
+#          enabled: >
+#            {{ 0 }}
+      - service: rest_command.solax_local_set_forced_charge_start
+        data:
+          value: >
+            {{ 5 + 25 * 256 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        # {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 or repeat.index == 3 }}
+        value_template: >-
+            {{ states('sensor.solax_local_battery_setting_start_charge') == '05:25' or repeat.index == 3 }}
+  mode: single
+
+# Detect if battery needs topping up within the off-peak tariff or if discharge should stop and the remainder power be left for peak usage 
+# (+4 is how much the inverter overshoots the target charge, +4 is buffer in case of fast discharge)
+- id: "1029376657476"
+  alias: Battery - Enable forced charge
+  description: "Stops allowed discharge and allows for charging to target"
+  trigger:
+  - platform: time_pattern
+    minutes: "/1"
+  condition: 
+  - condition: time
+    after: "00:01:00"
+    before: "05:20:00"
+#  - condition: template
+#    value_template: >-
+#      {{ states('sensor.solax_local_battery_chd2_enabled')|int == 0 }}
+  - condition: template
+    value_template: >-
+      {{ states('sensor.solax_local_battery_soc')|int <= states('sensor.solax_local_battery_charge_from_grid_to')|int + 8 }}
+  action:
+  - repeat:
+      sequence:
+#      - service: rest_command.solax_local_set_period2_enable
+#        data:
+#          # 1 = enabled, 0 = disabled
+#          enabled: >
+#            {{ 1 }}
+      - service: rest_command.solax_local_set_forced_charge_start
+        data:
+          value: >
+            {{ 0 + 5 * 256 }}            
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        # {{ states('sensor.solax_local_battery_chd2_enabled')|int == 1 or repeat.index == 3 }}
+        value_template: >-
+            {{ states('sensor.solax_local_battery_setting_start_charge') == '00:05' or repeat.index == 3 }}
+  mode: single
