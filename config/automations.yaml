@@ -639,7 +639,7 @@
   - platform: state
     entity_id:
     - input_datetime.saving_session_start
-    - input_boolean.saving_session_today
+    - input_select.saving_session_today
     for:
       hours: 0
       minutes: 0
@@ -647,7 +647,7 @@
   condition: 
   - condition: template
     value_template: >-
-      {{ states('input_boolean.saving_session_today') == 'yes' and states('input_datetime.saving_session_start') != None }}    
+      {{ states('input_select.saving_session_today') == 'yes' and states('input_datetime.saving_session_start') != None }}    
   action:
   - repeat:
       sequence:
