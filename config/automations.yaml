@@ -691,7 +691,7 @@
   condition: 
   - condition: template
     value_template: >-
-      {{ states('input_boolean.saving_session_today') == 'yes' and as_datetime(states('input_datetime.saving_session_start')).timestamp() < now().timestamp() }}    
+      {{ states('input_select.saving_session_today') == 'yes' and as_datetime(states('input_datetime.saving_session_start')).timestamp() < now().timestamp() }}    
   action:
   - repeat:
       sequence:
