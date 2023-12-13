@@ -387,3 +387,39 @@
         value_template: >-
             {{ states('sensor.solax_local_battery_setting_start_charge') == '00:05' or repeat.index == 3 }}
   mode: single
+
+
+- id: "3000"
+  alias: Battery - Saving Sessions - Disable second charge/discharge period (daily reset)
+  description: ''
+  trigger:
+  - platform: time
+    at: "23:35:00" 
+  - platform: time
+    at: "23:45:00" 
+  condition:
+  - condition: template
+    value_template: >-
+      {{ states('sensor.solax_local_battery_chd2_enabled')|bool==true }}    
+  action:
+  - repeat:
+      sequence:
+      - service: rest_command.solax_local_set_period2_enable
+        data:
+          # 1 = enabled, 0 = disabled
+          enabled: >
+            {{ 0 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ states('sensor.solax_local_battery_chd2_enabled')|bool==false or repeat.index == 3 }}
+  mode: single

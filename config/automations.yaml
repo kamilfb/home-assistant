@@ -572,9 +572,12 @@
 - id: "2001"
   alias: Octopus - Is there a Saving Session today?
   description: 'Sets the today flag and copies over the start time - this in turn should trigger the 3001 automation for pre-charging'
+  # Trigger every hour or when a new event is published (e.g. surprise session)
   trigger:
   - platform: time_pattern
     hours: "/1"
+  - platform: event
+    event_type: octopus_energy_new_octoplus_saving_session  
   action:
   - service: input_select.select_option
     target:
@@ -595,41 +598,6 @@
         {% set next_event = state_attr('binary_sensor.octopus_energy_a_5790678f_octoplus_saving_sessions', 'next_joined_event_start') %}
         {% set upcoming_event = current_event if (current_event != None) else next_event %}
         {{ (now() + timedelta(days=7)).strftime('%Y-%m-%d 00:00:00') if (upcoming_event == None) else upcoming_event }}           
-  mode: single
-
-- id: "3000"
-  alias: Battery - Saving Sessions - Disable second charge/discharge period (daily reset)
-  description: ''
-  trigger:
-  - platform: time
-    at: "23:35:00" 
-  - platform: time
-    at: "23:45:00" 
-  condition:
-  - condition: template
-    value_template: >-
-      {{ states('sensor.solax_local_battery_chd2_enabled')|bool==true }}    
-  action:
-  - repeat:
-      sequence:
-      - service: rest_command.solax_local_set_period2_enable
-        data:
-          # 1 = enabled, 0 = disabled
-          enabled: >
-            {{ 0 }}
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 15
-          milliseconds: 0
-      - service: homeassistant.update_entity
-        entity_id: sensor.solax_rest_local_settings
-
-      until:
-      - condition: template
-        # Try up to 3 times if the updated setting doen't reflect the target
-        value_template: >-
-            {{ states('sensor.solax_local_battery_chd2_enabled')|bool==false or repeat.index == 3 }}
   mode: single
 
 - id: "3001"
@@ -758,6 +726,10 @@
       - input_select.saving_session_today
     from: "yes"
     to: "no"   
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
   action:
   - service: automation.turn_off
     data:
@@ -779,6 +751,7 @@
 - id: "3008"
   alias: Battery - Saving Sessions - Return to Self-Use
   description: "Stop forced discharge and return to normal operation"
+  # Go back to normal operation if the battery is empty (managed to discharge everything) or the session has ended
   trigger:
   - platform: numeric_state
     entity_id: sensor.solax_local_battery_soc
@@ -787,10 +760,19 @@
       hours: 0
       minutes: 5
       seconds: 0
+  - platform: state
+    entity_id:
+      - binary_sensor.octopus_energy_a_5790678f_octoplus_saving_sessions
+    from: "on"
+    to: "off"
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
   condition: 
   - condition: template
     value_template: >-
-      {{ (states('sensor.solax_local_inverter_mode') == 'Manual' and states('sensor.solax_local_manual_mode_behaviour') == 'Forced Discharge') }}    
+      {{ (states('sensor.solax_local_inverter_mode') == 'Manual' or states('sensor.solax_local_battery_chd2_enabled')|bool==true) }}    
   action:
   - repeat:
       sequence:
@@ -804,6 +786,16 @@
           minutes: 0
           seconds: 15
           milliseconds: 0
+      - service: rest_command.solax_local_set_period2_enable
+        data:
+          # 1 = enabled, 0 = disabled
+          enabled: >
+            {{ 0 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0    
       - service: homeassistant.update_entity
         entity_id: sensor.solax_rest_local_settings
 
@@ -811,5 +803,5 @@
       - condition: template
         # Try up to 3 times if the updated setting doen't reflect the target
         value_template: >-
-            {{ states('sensor.solax_local_inverter_mode') == 'Self Use' or repeat.index == 3 }}
+            {{ (states('sensor.solax_local_battery_chd2_enabled')|bool==false and states('sensor.solax_local_inverter_mode') == 'Self Use') or repeat.index == 3 }}
   mode: single
