@@ -423,3 +423,45 @@
         value_template: >-
             {{ states('sensor.solax_local_battery_chd2_enabled')|bool==false or repeat.index == 3 }}
   mode: single
+
+  - id: '1000000000001'
+  alias: "Sinks - Zappi - Battery getting full"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solax_local_battery_soc
+      for:
+        hours: 0
+        minutes: 1
+        seconds: 0
+      above: 90
+  condition: []
+  action:
+    - device_id: bd40256cc856744ab22471c444adf02e
+      domain: number
+      entity_id: number.myenergi_zappi_22670748_minimum_green_level
+      type: set_value
+      value: 40
+    - type: turn_on
+      device_id: 81156b52303e441076758ad3e9620bfa
+      entity_id: switch.octopus_bump_charge
+      domain: switch
+
+- id: '1000000000002'
+  alias: "Sinks - Zappi - Battery has capacity"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solax_local_battery_soc
+      for:
+        hours: 0
+        minutes: 1
+        seconds: 0
+      below: 90
+  condition: []
+  action:
+    - device_id: bd40256cc856744ab22471c444adf02e
+      domain: number
+      entity_id: number.myenergi_zappi_22670748_minimum_green_level
+      type: set_value
+      value: 100
