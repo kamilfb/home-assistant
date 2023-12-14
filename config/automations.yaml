@@ -491,7 +491,7 @@
   description: "Updates local inverter settings"
   trigger:
   - platform: time_pattern
-    minutes: "/5"
+    minutes: "/15"
   condition: 
   - condition: time
     after: "09:00:00"
