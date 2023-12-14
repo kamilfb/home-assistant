@@ -717,7 +717,7 @@
       entity_id: automation.battery_enable_forced_charge_before_saving_session
   - service: automation.turn_off
     data:
-      stop_actions: true
+      stop_actions: false
     target:
       entity_id: automation.battery_saving_sessions_return_to_self_use
   mode: single
