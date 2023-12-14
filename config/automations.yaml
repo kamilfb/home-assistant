@@ -475,7 +475,7 @@
   description: "Updates local inverter readings"
   trigger:
   - platform: time_pattern
-    seconds: "/10"
+    seconds: "/15"
   condition: 
   - condition: time
     after: "06:00:00"
@@ -534,6 +534,9 @@
   trigger:
   - platform: time_pattern
     minutes: "/30"
+  - platform: state
+    entity_id:
+    - binary_sensor.octopus_energy_a_5790678f_octoplus_saving_sessions
   - platform: state
     entity_id:
     - binary_sensor.octopus_energy_a_5790678f_octoplus_saving_sessions
@@ -623,8 +626,15 @@
   condition: 
   - condition: template
     value_template: >-
-      {{ states('input_select.saving_session_today') == 'yes' and as_datetime(states('input_datetime.saving_session_start')).timestamp() < now().timestamp() }}    
+      {{ states('sensor.solax_local_inverter_mode') == 'Self Use' 
+          and states('input_select.saving_session_today') == 'yes' 
+          and as_datetime(states('input_datetime.saving_session_start')).timestamp() < now().timestamp() }}    
   action:
+  - service: automation.turn_off
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.battery_enable_forced_charge_before_saving_session   
   - repeat:
       sequence:
       - service: rest_command.solax_local_set_inverter_mode
@@ -683,8 +693,7 @@
 
 - id: "3006"
   alias: Battery - Saving Sessions - Disable automations
-  description: "Enable pre-charging and forced discharge automations"
-  # A few minutes after the event (current/next get updated), disable most of the automations related to saving sessions
+  description: "A few minutes after the event (current/next get updated), disable most of the automations related to saving sessions"
   trigger:
   - platform: state
     entity_id:
@@ -738,9 +747,19 @@
   - condition: template
     value_template: >-
       {{ (states('sensor.solax_local_inverter_mode') == 'Manual' or states('sensor.solax_local_battery_chd2_enabled')|bool==true) }}    
-  action:
+  action:   
+  - service: automation.turn_off
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.battery_saving_sessions_enable_forced_discharge
   - repeat:
       sequence:
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
       - service: rest_command.solax_local_set_inverter_mode
         data:
           # 0: self use, 1: feed in priority, 2: back up, 3: manual
