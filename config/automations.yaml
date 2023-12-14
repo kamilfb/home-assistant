@@ -575,9 +575,11 @@
   # Trigger every hour or when a new event is published (e.g. surprise session)
   trigger:
   - platform: time_pattern
-    hours: "/1"
-  - platform: event
-    event_type: octopus_energy_new_octoplus_saving_session  
+    minutes: "/30"
+  - platform: state
+    entity_id:
+    - binary_sensor.octopus_energy_a_5790678f_octoplus_saving_sessions
+    attribute: next_joined_event_start
   action:
   - service: input_select.select_option
     target:
@@ -604,6 +606,8 @@
   alias: Battery - Saving Sessions - Request full charge
   description: "Stops allowed discharge and allows for charging to target"
   trigger:
+  - platform: time_pattern
+    minutes: "/15"
   - platform: state
     entity_id:
     - input_datetime.saving_session_start
@@ -611,11 +615,13 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 30
-  condition: 
+      seconds: 45
+  condition:
   - condition: template
     value_template: >-
-      {{ states('input_select.saving_session_today') == 'yes' and states('input_datetime.saving_session_start') != None }}    
+      {{ states('sensor.solax_local_battery_chd2_enabled')|bool==false 
+          and states('input_select.saving_session_today') == 'yes' 
+          and states('input_datetime.saving_session_start') != None }}    
   action:
   - repeat:
       sequence:
