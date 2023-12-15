@@ -563,6 +563,26 @@
         {{ (now() + timedelta(days=7)).strftime('%Y-%m-%d 00:00:00') if (upcoming_event == None) else upcoming_event }}           
   mode: single
 
+- id: "3005"
+  alias: Battery - Saving Sessions - Enable automations
+  description: "Enable pre-charging and forced discharge automations"
+  trigger:
+  - platform: state
+    entity_id:
+      - input_select.saving_session_today
+    from: "no"
+    to: "yes"
+  action:
+  - service: automation.turn_on
+    data: {}
+    target:
+      entity_id: automation.battery_enable_forced_charge_before_saving_session
+  - service: automation.turn_on
+    data: {}
+    target:
+      entity_id: automation.battery_saving_sessions_enable_forced_discharge
+  mode: single
+  
 - id: "3001"
   alias: Battery - Saving Sessions - Request full charge
   description: "Stops allowed discharge and allows for charging to target"
@@ -634,7 +654,11 @@
     data:
       stop_actions: true
     target:
-      entity_id: automation.battery_enable_forced_charge_before_saving_session   
+      entity_id: automation.battery_enable_forced_charge_before_saving_session
+  - service: automation.turn_on
+    data: {}
+    target:
+      entity_id: automation.battery_saving_sessions_return_to_self_use
   - repeat:
       sequence:
       - service: rest_command.solax_local_set_inverter_mode
@@ -665,30 +689,6 @@
         # Try up to 3 times if the updated setting doen't reflect the target
         value_template: >-
             {{ (states('sensor.solax_local_inverter_mode') == 'Manual' and states('sensor.solax_local_manual_mode_behaviour') == 'Forced Discharge') or repeat.index == 3 }}
-  mode: single
-
-- id: "3005"
-  alias: Battery - Saving Sessions - Enable automations
-  description: "Enable pre-charging and forced discharge automations"
-  trigger:
-  - platform: state
-    entity_id:
-      - input_select.saving_session_today
-    from: "no"
-    to: "yes"
-  action:
-  - service: automation.turn_on
-    data: {}
-    target:
-      entity_id: automation.battery_saving_sessions_enable_forced_discharge
-  - service: automation.turn_on
-    data: {}
-    target:
-      entity_id: automation.battery_enable_forced_charge_before_saving_session
-  - service: automation.turn_on
-    data: {}
-    target:
-      entity_id: automation.battery_saving_sessions_return_to_self_use
   mode: single
 
 - id: "3006"
