@@ -632,9 +632,12 @@
 
       until:
       - condition: template
-        # Try up to 3 times if the updated setting doen't reflect the target
+        # Try up to 3 times if the updated setting doen't reflect the target (second period and time)
         value_template: >-
-            {{ states('sensor.solax_local_battery_chd2_enabled')|bool==true or repeat.index == 3 }}
+            {% set end_time = as_datetime(state_attr('input_datetime.saving_session_start', 'timestamp') - 60).strftime('%H:%M') %}
+            {{ (states('sensor.solax_local_battery_chd2_enabled')|bool==true 
+                and states('sensor.solax_local_battery_setting_stop_charge_2') == end_time)
+                or repeat.index == 3 }}
   mode: single
 
 - id: "3003"
