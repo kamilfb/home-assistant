@@ -659,6 +659,12 @@
     data: {}
     target:
       entity_id: automation.battery_saving_sessions_return_to_self_use
+  # Stop Zappi from charging the car as there will be energy send to the grid
+  - device_id: bd40256cc856744ab22471c444adf02e
+    domain: select
+    entity_id: b6ff0dc9292d837d75a1367990331fe7
+    type: select_option
+    option: Stopped
   - repeat:
       sequence:
       - service: rest_command.solax_local_set_inverter_mode
@@ -788,4 +794,10 @@
         # Try up to 3 times if the updated setting doen't reflect the target
         value_template: >-
             {{ (states('sensor.solax_local_battery_chd2_enabled')|bool==false and states('sensor.solax_local_inverter_mode') == 'Self Use') or repeat.index == 3 }}
+  # Return Zappi to normal operation
+  - device_id: bd40256cc856744ab22471c444adf02e
+    domain: select
+    entity_id: b6ff0dc9292d837d75a1367990331fe7
+    type: select_option
+    option: Eco+
   mode: single
