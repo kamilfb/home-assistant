@@ -91,7 +91,7 @@ input_number:
   # Target Daikin temperature
   living_room_temp_target:
     name: living_room_temp_target
-    initial: 18.5
+    initial: 21.0
     min: 15.5
     max: 23.0
     step: 0.5
