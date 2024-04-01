@@ -11,21 +11,24 @@
         - climate.ground_floor
   condition: []
   action:
+  # Set target temp for Daikin AC based on Tado thermostat setting - don't override if no new Tado target temp available
   - service: input_number.set_value
     data_template:
       entity_id: input_number.living_room_temp_target
       value: >
-        {% set currentLvTarget = states('input_number.living_room_temp_target')|float %}
-        {% set currentGfTarget = states('input_number.ground_floor_temp_target')|float %}
-        {% set gfTempTarget  = state_attr('climate.ground_floor', 'temperature')|float %}
-        {% set lvTempTarget = (gfTempTarget | round(1, 'half', 0)) - 2.0 if (gfTempTarget != currentGfTarget) else currentLvTarget %}
+        {% set living_room_temp_target = states('input_number.living_room_temp_target')|float %}
+        {% set prev_tado_target = states('input_number.ground_floor_temp_target')|float %}
+        {% set tado_target  = state_attr('climate.ground_floor', 'temperature')|float %}
+        {% set lvTempTarget = ((tado_target + ground_floor_temp_offset) | round(1, 'half', 0)) if (tado_target != prev_tado_target) else living_room_temp_target %}
         {{ lvTempTarget }}  
+  # Copy Tado thermostat setting to an input_number      
   - service: input_number.set_value
     data_template:
       entity_id: input_number.ground_floor_temp_target
       value: >
         {% set gfTempTarget  = state_attr('climate.ground_floor', 'temperature')|float %}
         {{ gfTempTarget }}
+  # Set the unit to heat only if target temp is set reasonably high      
   - service: input_select.select_option
     target:
       entity_id: input_select.living_room_hvac_mode
