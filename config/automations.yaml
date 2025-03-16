@@ -405,3 +405,74 @@
     type: select_option
     option: Eco+
   mode: single
+
+- id: "3010"
+  alias: Battery - Free Electricity - All On
+  description: "Start all devices - Solax Battery, Zappi, Slow EV charger, Really Hot Water, Dishwasher"
+  trigger: []
+  action:   
+  - repeat:
+      sequence:
+      - service: rest_command.solax_local_set_inverter_mode
+        data:
+          # 0: self use, 1: feed in priority, 2: back up, 3: manual
+          value: >
+            {{ 3 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      - service: rest_command.solax_local_set_manual_mode_behaviour
+        data:
+          # 0: do nothing, 1: forced charge, 2: forced discharge
+          value: >
+            {{ 1 }}
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      - service: homeassistant.update_entity
+        entity_id: sensor.solax_rest_local_settings
+
+      until:
+      - condition: template
+        # Try up to 3 times if the updated setting doen't reflect the target
+        value_template: >-
+            {{ (states('sensor.solax_local_inverter_mode') == 'Manual' and states('sensor.solax_local_manual_mode_behaviour') == 'Forced Charge') or repeat.index == 3 }}
+  # Zappi to Fast
+  - device_id: bd40256cc856744ab22471c444adf02e
+    domain: select
+    entity_id: b6ff0dc9292d837d75a1367990331fe7
+    type: select_option
+    option: Fast
+  # Turn on EV charger socket  
+  - type: turn_on
+    device_id: ea5104db6def72c74cac364dd24eb9fa
+    entity_id: 308e8d77d06ed8939fa3d2c4ad1fdf35
+    domain: switch  
+  # Turn up hot water  
+  - repeat:
+      sequence:
+      - service: water_heater.set_temperature
+        metadata: {}
+        data:
+          temperature: 65
+        target:
+          entity_id: water_heater.domek_domestic_hot_water_0
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 15
+          milliseconds: 0
+      until:
+      - condition: numeric_state
+        entity_id: sensor.domek_domestic_hot_water_0_setpoint
+        above: 60
+  # Turn on dishwasher      
+  - type: turn_on
+    device_id: 650c729ff7756a7f5f27339e3f3b7a07
+    entity_id: 985273d7d1f8fe478006f9154e7ce105
+    domain: switch      
+  mode: single
