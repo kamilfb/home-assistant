@@ -197,3 +197,40 @@
     step: 0.5
     unit_of_measurement: "°C"
   
+    daily_zappi_charging:
+    source: sensor.zappi_today
+    name: Daily Zappi Charging
+    cycle: daily
+    net_consumption: true
+    tariffs:
+      - solar
+      - peak
+      - offpeak
+
+  monthly_zappi_charging:
+    source: sensor.zappi_today
+    name: Monthly Zappi Charging
+    cycle: monthly
+    net_consumption: true
+    tariffs:
+      - solar
+      - peak
+      - offpeak
+
+  #daily_tesla_charging:
+  #  source: sensor.outdoor_lights_total_consumption
+  #  name: Daily Tesla Charging
+  #  cycle: daily
+  #  tariffs:
+  #    - solar
+  #    - peak
+  #    - offpeak
+
+  #monthly_tesla_charging:
+  #  source: sensor.outdoor_lights_total_consumption
+  #  name: Monthly Tesla Charging
+  #  cycle: monthly
+  #  tariffs:
+  #    - solar
+  #    - peak
+  #    - offpeak
