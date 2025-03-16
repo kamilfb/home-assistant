@@ -55,48 +55,6 @@ input_datetime:
 
 input_number:
 
-  # Min 10 (to avoid going up to quickly), step every 5min to easier use
-  ground_floor_temp_target_min_cycle_duration:
-    name: ground_floor_temp_target_min_cycle_duration
-    initial: 30
-    min: 1
-    max: 60
-    step: 1
-
-  ground_floor_temp_offset:
-    name: ground_floor_temp_offset
-    initial: 0.0
-    min: -2.0
-    max: 2.0
-    step: 0.1
-    unit_of_measurement: "°C"
-
-  ground_floor_temp_target_margin:
-    name: ground_floor_temp_target_margin
-    initial: 0.5
-    min: 0.1
-    max: 1.0
-    step: 0.1
-    unit_of_measurement: "°C"
-
-  # Copied over from Tado thermostat
-  ground_floor_temp_target:
-    name: ground_floor_temp_target
-    initial: 21.5
-    min: 18.0
-    max: 22.5
-    step: 0.1
-    unit_of_measurement: "°C"
-
-  # Target Daikin temperature
-  living_room_temp_target:
-    name: living_room_temp_target
-    initial: 21.0
-    min: 15.5
-    max: 23.0
-    step: 0.5
-    unit_of_measurement: "°C"
-  
   min_battery_target:
     name: min_battery_target
     initial: 11
@@ -114,30 +72,6 @@ input_number:
     initial: 94
     min: 10
     max: 94
-
-  evening_immersion_target:
-    name: evening_immersion_target
-    unit_of_measurement: 'kWh'
-    initial: 2.0
-    min: 0.0
-    max: 5.0
-    step: 0.1
-
-  night_min_immersion_target:
-    name: night_min_immersion_target
-    unit_of_measurement: 'kWh'
-    initial: 3
-    min: 0
-    max: 8
-    step: 0.1
-
-  night_immersion_target:
-    name: night_immersion_target
-    unit_of_measurement: 'kWh'
-    initial: 9
-    min: 0
-    max: 12
-    step: 0.1
 
   max_temp_idle_seconds:
     name: max_temp_idle_seconds
@@ -575,14 +509,14 @@ template:
       unit_of_measurement: "kWh"
       state_class: measurement
       device_class: "energy"
-      state: "{{ states('sensor.lounge_daily_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_daily_heat_energy_consumption') | float(default=0)}}"
+      state: "{{ states('sensor.lounge_daily_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_daily_heat_energy_consumption') | float(default=0) + states('sensor.lounge_daily_cooling_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_daily_cooling_energy_consumption') | float(default=0) + states('sensor.master_bedroom_daily_cooling_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_daily_cooling_energy_consumption') | float(default=0)}}"
 
     # Total yearly heap pump
     - name: heat_pump_yearly
       unique_id: heat_pump_yearly
       unit_of_measurement: "kWh"
       device_class: "energy"
-      state: "{{ states('sensor.lounge_yearly_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_yearly_heat_energy_consumption') | float(default=0)}}"
+      state: "{{ states('sensor.lounge_yearly_heat_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.master_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_yearly_heat_energy_consumption') | float(default=0) + states('sensor.lounge_yearly_cooling_energy_consumption') | float(default=0) + states('sensor.amelia_s_bedroom_yearly_cooling_energy_consumption') | float(default=0) + states('sensor.master_bedroom_yearly_cooling_energy_consumption') | float(default=0) + states('sensor.adam_s_bedroom_yearly_cooling_energy_consumption') | float(default=0)}}"
 
     # Total today's zappi
     - name: zappi_today
@@ -614,41 +548,6 @@ template:
         {% else %}
           None
         {% endif %}
-
-  - binary_sensor:
-    # Logic divided into base conditions (bc) that apply regardless, and battery/solar specific
-    - name: "Request 3kW Immersion"
-      state: >
-        {% set alreadyOn = is_state('switch.sonoff_100168acb6', 'on')|int(default=0)  %}
-        {% set heatingPower = states('sensor.sonoff_100168acb6_power')|float(default=0) %}
-        {% set batteryCharging = states('sensor.solax_local_battery_power_adjusted')|int %}
-        {% set pv = states('sensor.solax_local_pv_output')|int %}
-        {% set feedIn = states('sensor.solax_local_feedin_power')|int %}
-        {% set load = states('sensor.solax_local_load_power')|int %}
-        {% set batteryLevel = states('sensor.solax_local_battery_soc')|int %}
-        {% set sparePower = feedIn + batteryCharging %}
-        {% set bc = (feedIn > -200) and (
-                 (alreadyOn==false and load < 2500) 
-              or (alreadyOn==true  and load < 5500)) %}
-        {% set bc2 = (feedIn > -200) and (
-                 ((alreadyOn==false or heatingPower < 1000) and load < 2500) 
-              or (alreadyOn==true and heatingPower > 1000 and load < 5500)) %}
-        {# 
-        (pv > 3400 and alreadyOn==false and sparePower > 3200) 
-                or (pv > 3400 and alreadyOn==true  and sparePower > 100)
-                or (pv > 2800 and alreadyOn==false and batteryLevel >  55) 
-                or (pv > 2800 and alreadyOn==true  and batteryLevel >= 50)
-                or (pv > 2000 and alreadyOn==false and batteryLevel >  65) 
-                or (pv > 2000 and alreadyOn==true  and batteryLevel >= 60)
-                or (pv > 1400 and alreadyOn==false and batteryLevel >  75) 
-                or (pv > 1400 and alreadyOn==true  and batteryLevel >= 70)
-                or (pv >  800 and alreadyOn==false and batteryLevel >  85)
-                or (pv >  800 and alreadyOn==true  and batteryLevel >= 80)                
-                or 
-        #}
-
-        {{ bc and ((pv >  500 and alreadyOn==false and batteryLevel >  93)
-                or (pv >  500 and alreadyOn==true  and batteryLevel >= 90)) }}
 
 sensor: !include sensor.yaml
 
@@ -761,44 +660,6 @@ utility_meter:
     #source: sensor.sonoff_100168acb6_energy
     source: sensor.immersion_heater_aggregated_energy
     name: Hot Water
-    cycle: monthly
-    tariffs:
-      - solar
-      - peak
-      - offpeak
-
-  daily_zappi_charging:
-    source: sensor.zappi_today
-    name: Daily Zappi Charging
-    cycle: daily
-    net_consumption: true
-    tariffs:
-      - solar
-      - peak
-      - offpeak
-
-  monthly_zappi_charging:
-    source: sensor.zappi_today
-    name: Monthly Zappi Charging
-    cycle: monthly
-    net_consumption: true
-    tariffs:
-      - solar
-      - peak
-      - offpeak
-
-  daily_tesla_charging:
-    source: sensor.outdoor_lights_total_consumption
-    name: Daily Tesla Charging
-    cycle: daily
-    tariffs:
-      - solar
-      - peak
-      - offpeak
-
-  monthly_tesla_charging:
-    source: sensor.outdoor_lights_total_consumption
-    name: Monthly Tesla Charging
     cycle: monthly
     tariffs:
       - solar
