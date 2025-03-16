@@ -587,6 +587,54 @@ utility_meter:
   #  cycle: daily
   #  net_consumption: false
 
+  daily_a2w_usage:
+    source: sensor.emoncms_electric_energy
+    name: Daily a2w Usage
+    cycle: daily
+    tariffs:
+      - hot_water
+      - space_heating
+
+  daily_a2w_output:
+    source: sensor.emoncms_heatmeter_energy
+    name: Daily a2w Output
+    cycle: daily
+    tariffs:
+      - hot_water
+      - space_heating
+
+  monthly_a2w_usage:
+    source: sensor.emoncms_electric_energy
+    name: Monthly a2w Usage
+    cycle: monthly
+    tariffs:
+      - hot_water
+      - space_heating
+
+  monthly_a2w_output:
+    source: sensor.emoncms_heatmeter_energy
+    name: Monthly a2w Output
+    cycle: monthly
+    tariffs:
+      - hot_water
+      - space_heating
+
+  monthly_a2w_usage_hot_water_tou:
+    source: sensor.monthly_a2w_usage_hot_water
+    name: Monthly a2w HW Usage
+    cycle: monthly
+    tariffs:
+      - peak
+      - offpeak
+
+  monthly_a2w_usage_space_heating_tou:
+    source: sensor.monthly_a2w_usage_space_heating
+    name: Monthly a2w Space Heating Usage
+    cycle: monthly
+    tariffs:
+      - peak
+      - offpeak
+
   daily_load:
     source: sensor.solax_local_load_aggregated_energy
     name: Daily Load 

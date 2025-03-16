@@ -60,7 +60,17 @@
     target:
       entity_id: select.monthly_grid
     data:
-      option: "{{ tariff }}"  
+      option: "{{ tariff }}"
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_a2w_usage_hot_water_tou
+    data:
+      option: "{{ tariff }}"   
+  - service: select.select_option
+    target:
+      entity_id: select.monthly_a2w_usage_space_heating_tou
+    data:
+      option: "{{ tariff }}"   
   - service: input_number.set_value
     target:
       entity_id: input_number.electricity_tariff_cost
@@ -69,6 +79,86 @@
         {% set cost = dict(peak=0.2278, offpeak=0.07) %}
         {{ cost[tariff] }}
   mode: single
+
+- id: "5000"
+  alias: 'Get Heat Pump Mode (Hot Water vs Space Heating)'
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.ASHP_DHW_On
+  action:
+  - service: select.select_option
+    target:
+      entity_id:
+      - select.daily_a2w_usage
+      - select.daily_a2w_output
+      - select.monthly_a2w_usage
+      - select.monthly_a2w_output
+    data:
+      option: >
+        {% if is_state('binary_sensor.ASHP_DHW_On', 'on') %}
+          hot_water
+        {% else %}
+          space_heating
+        {% endif %}
+  mode: single
+
+- id: "5001"
+  alias: "Hot Water - Set lower daytime hot water temp"
+  mode: single
+  trigger:
+    - platform: time
+      at: "12:55:00"
+    - platform: time
+      at: "14:05:00"     
+  condition: []
+  action:
+    - repeat:
+        sequence:
+          - service: water_heater.set_temperature
+            metadata: {}
+            data:
+              temperature: 48
+            target:
+              entity_id: water_heater.domek_domestic_hot_water_0
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 15
+              milliseconds: 0
+        until:
+          - condition: numeric_state
+            entity_id: sensor.domek_domestic_hot_water_0_setpoint
+            below: 50
+
+- id: "5002"
+  alias: "Hot Water - Set higher nighttime hot water temp"
+  mode: single
+  trigger:
+    - platform: time
+      at: "22:30:00"  
+    - platform: time
+      at: "23:30:00"
+    - platform: time
+      at: "00:25:00"      
+  condition: []
+  action:
+    - repeat:
+        sequence:
+          - service: water_heater.set_temperature
+            metadata: {}
+            data:
+              temperature: 58
+            target:
+              entity_id: water_heater.domek_domestic_hot_water_0
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 15
+              milliseconds: 0
+        until:
+          - condition: numeric_state
+            entity_id: sensor.domek_domestic_hot_water_0_setpoint
+            above: 50
 
 # Keep refreshing the energy readings for manual inspection and more snappy automations
 - id: "1019847854392"
