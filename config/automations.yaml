@@ -566,3 +566,27 @@
     entity_id: 985273d7d1f8fe478006f9154e7ce105
     domain: switch      
   mode: single
+
+- id: "7000"
+  alias: "Camera - Solar snapshot"
+  description: "Get a snap from the solar camera"
+  mode: single
+  triggers:
+    - trigger: time_pattern
+      minutes: "0" 
+    - trigger: time_pattern
+      minutes: "30"
+  conditions:
+    - condition: sun
+      after: sunrise
+      before: sunset
+  actions:
+    - action: blink.trigger_camera
+      target:
+        entity_id: camera.solar
+    - action: camera.snapshot
+      metadata: {}
+      data:
+        filename: '/media/blink_{{ now().strftime("%Y%m%d-%H%M%S") }}.jpg'
+      target:
+        entity_id: camera.solar

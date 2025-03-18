@@ -16,6 +16,13 @@ logger:
      homeassistant.components.rest: info
   #   custom_components.powercalc: debug
 
+homeassistant:
+  allowlist_external_dirs:
+    - '/media'
+
+  whitelist_external_dirs:
+    - '/media'
+
 recorder:
   purge_keep_days: 14
 
