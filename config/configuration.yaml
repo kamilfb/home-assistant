@@ -549,6 +549,11 @@ template:
           None
         {% endif %}
 
+  - binary_sensor:
+    - name: "ASHP_DHW_On"
+      state: >
+        {{ states('sensor.emoncms_dhw_flag')|float(default=0) > 0 }}
+
 sensor: !include sensor.yaml
 
 powercalc: 

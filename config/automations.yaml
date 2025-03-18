@@ -81,7 +81,7 @@
   mode: single
 
 - id: "5000"
-  alias: 'Get Heat Pump Mode (Hot Water vs Space Heating)'
+  alias: 'Heat Pump - Get Operaning Mode (Hot Water vs Space Heating)'
   trigger:
   - platform: state
     entity_id: binary_sensor.ASHP_DHW_On
