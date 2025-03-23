@@ -579,7 +579,9 @@
   conditions:
     - condition: sun
       after: sunrise
+      after_offset: "-02:00:00"
       before: sunset
+      before_offset: "+02:00:00"
   actions:
     - action: blink.trigger_camera
       target:
