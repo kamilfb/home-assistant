@@ -567,6 +567,99 @@
     domain: switch      
   mode: single
 
+- id: "8000"
+  alias: "Heat Pump - Calculate New Target Temperature"
+  description: "Calculates a new target temperature based on the current temperature relative to the scheduled setpoint, every 5 minutes."
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "/5"
+  action:
+    - variables:
+        current_time: "{{ now().hour * 60 + now().minute }}"
+        day_name: "{{ now().strftime('%A').lower() }}"
+        current_temperature: "{{ state_attr('climate.domek_zone_1_circuit_0_climate', 'current_temperature') | float }}"
+        scheduled_temperature: >
+          {% for slot in state_attr('climate.domek_zone_1_circuit_0_climate', 'time_program_heating')[day_name] %}
+            {% if current_time >= slot.start_time and current_time < slot.end_time %}
+              {{ slot.setpoint }}
+            {% endif %}
+          {% endfor %}
+        temperature_difference: "{{ current_temperature - scheduled_temperature }}"
+        # For each full 0.5°C above scheduled, reduce the target by 0.5°C.
+        steps: "{{ (temperature_difference / 0.5) | int if temperature_difference >= 0.5 else 0 }}"
+        new_target: >
+          {% if steps > 0 %}
+            {{ scheduled_temperature - (steps * 0.5) | float }}
+          {% else %}
+            {{ scheduled_temperature | float }}
+          {% endif %}
+        quick_veto_end: "{{ state_attr('climate.domek_zone_1_circuit_0_climate', 'quick_veto_end_date_time') }}"
+        remaining_veto_time_minutes: >
+          {% if quick_veto_end != 'unknown' %}
+            {{ ((as_timestamp(quick_veto_end) - as_timestamp(now())) / 60) | round(0) }}
+          {% else %}
+            0
+          {% endif %}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.vaillant_new_temperature
+      data:
+        value: "{{ new_target | float }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.vaillant_scheduled_temperature
+      data:
+        value: "{{ scheduled_temperature | float }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.vaillant_temperature_difference
+      data:
+        value: "{{ temperature_difference }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.vaillant_remaining_veto_minutes
+      data:
+        value: "{{ remaining_veto_time_minutes }}"
+
+- id: "8001"
+  alias: "Heat Pump - Apply Quick Veto with New Temperature"
+  description: "Uses a quick veto to set the target temperature to the new value, every 30 minutes during daytime."
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: "0"
+    - platform: time_pattern
+      minutes: "30"
+  condition:
+    - condition: sun
+      after: sunrise
+      before: sunset
+  action:
+    - variables:
+        quick_veto_end: "{{ state_attr('climate.domek_zone_1_circuit_0_climate', 'quick_veto_end_date_time') }}"
+        remaining_veto_time_minutes: >
+          {% if quick_veto_end != 'unknown' %}
+            {{ ((as_timestamp(quick_veto_end) - as_timestamp(now())) / 60) | round(0) }}
+          {% else %}
+            0
+          {% endif %}
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: "{{ remaining_veto_time_minutes < 40 }}"
+          sequence:
+            - service: mypyllant.set_quick_veto
+              target:
+                device_id: "0368cdeffae38b2400e2a1c64d48eb7f"
+              data:
+                temperature: "{{ states('input_number.vaillant_new_temperature') | float }}"
+                duration_hours: 2
+            - service: logbook.log
+              data:
+                name: "Heating Adjust"
+                message: "Quick veto applied with new target temperature: {{ states('input_number.vaillant_new_temperature') }}"
+
 - id: "7000"
   alias: "Camera - Solar snapshot"
   description: "Get a snap from the solar camera"

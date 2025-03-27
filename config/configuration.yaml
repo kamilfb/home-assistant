@@ -93,6 +93,39 @@ input_number:
     min: 0.0
     max: 1.0
 
+  vaillant_scheduled_temperature:
+    name: Scheduled Hall Temperature
+    min: 15
+    max: 25
+    step: 0.5
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+
+  vaillant_temperature_difference:
+    name: Temperature Difference (>0 means overheating)
+    min: -5
+    max: 5
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+
+  vaillant_new_temperature:
+    name: New Hall Temperature
+    min: 15
+    max: 25
+    step: 0.5
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer
+
+  
+  vaillant_remaining_veto_minutes:
+    name: Remaining veto minutes
+    min: 0
+    max: 600
+    step: 1
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+
 automation: !include automations.yaml
 #script: !include scripts.yaml
 #scene: !include scenes.yaml
